@@ -50,14 +50,13 @@ services:
       - ../.env
     environment:
       - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
-      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN}
+      - BASE_URL=${BASE_URL}
       #Path of mounted file
       - GOOGLE_APPLICATION_CREDENTIALS=/app/google-application-credentials.json
       - PROJECT_ID=${PROJECT_ID}
       - REGION=${REGION}
       - WORKSPACE_PATH=${WORKSPACE_PATH}
       - USE_DOCKER_SANDBOX=${USE_DOCKER_SANDBOX}
-      - NGINX_PORT=${NGINX_PORT}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock #ONLY WORK FOR UNIX FOR NOW
       - ${WORKSPACE_PATH:-../workspace}:/app/workspace

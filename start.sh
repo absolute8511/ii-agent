@@ -32,9 +32,11 @@ echo "Using HOST_IP: $HOST_IP"
 #BACKEND ENVIRONMENT VARIABLES
 export FRONTEND_PORT=3000
 export BACKEND_PORT=8000
+export NGINX_PORT=8080
+
 export WORKSPACE_PATH=${PWD}/workspace
 export PUBLIC_DOMAIN=${HOST_IP}.nip.io
-export NGINX_PORT=8080
+export BASE_URL=${HOST_IP}.nip.io:${NGINX_PORT}
 
 # Start docker-compose with the HOST_IP variable
 COMPOSE_PROJECT_NAME=agent docker compose -f docker/docker-compose.yaml --profile $COMPOSE_PROFILE up "$@"

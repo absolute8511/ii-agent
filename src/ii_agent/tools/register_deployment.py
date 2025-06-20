@@ -39,7 +39,7 @@ class RegisterDeploymentTool(LLMTool):
         connection_uuid = self.workspace_manager.root.name
 
         # Construct the public URL using the base URL and connection UUID
-        public_url = f"http://{connection_uuid}-{port}.{os.getenv('PUBLIC_DOMAIN')}:{os.getenv('NGINX_PORT')}"
+        public_url = f"http://{connection_uuid}-{port}.{os.getenv('BASE_URL')}"
 
         return public_url
 
