@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useReducer, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useReducer,
+  ReactNode,
+  useEffect,
+} from "react";
+import Cookies from "js-cookie";
 import {
   ActionStep,
   AgentEvent,
@@ -186,7 +193,31 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
 // Context provider component
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  // Load initial state from cookies before creating the reducer
+  const getInitialState = (): AppState => {
+    // Start with the default initial state
+    const defaultState = { ...initialState };
+
+    // Try to load tool settings from cookies
+    const savedToolSettings = Cookies.get("tool_settings");
+    if (savedToolSettings) {
+      try {
+        defaultState.toolSettings = JSON.parse(savedToolSettings);
+      } catch (error) {
+        console.error("Failed to parse saved tool settings:", error);
+      }
+    }
+
+    // Try to load selected model from cookies
+    const savedModel = Cookies.get("selected_model");
+    if (savedModel) {
+      defaultState.selectedModel = savedModel;
+    }
+
+    return defaultState;
+  };
+
+  const [state, dispatch] = useReducer(appReducer, getInitialState());
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

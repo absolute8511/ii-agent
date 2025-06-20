@@ -90,6 +90,24 @@ const SettingsDrawer = ({ isOpen, onClose, onOpen }: SettingsDrawerProps) => {
     }
   }, [state.selectedModel, isClaudeModel, state.toolSettings, dispatch]);
 
+  useEffect(() => {
+    if (state.toolSettings) {
+      Cookies.set("tool_settings", JSON.stringify(state.toolSettings), {
+        expires: 365, // 1 year
+        sameSite: "strict",
+        secure: window.location.protocol === "https:",
+      });
+
+      // Reset thinking_tokens to 0 for non-Claude models
+      if (!isClaudeModel && state.toolSettings.thinking_tokens > 0) {
+        dispatch({
+          type: "SET_TOOL_SETTINGS",
+          payload: { ...state.toolSettings, thinking_tokens: 0 },
+        });
+      }
+    }
+  }, [isClaudeModel, state.toolSettings, dispatch]);
+
   return (
     <>
       {isOpen && (
