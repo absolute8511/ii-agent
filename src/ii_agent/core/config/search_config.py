@@ -14,7 +14,6 @@ class SearchConfig(BaseModel):
 
     """
     firecrawl_api_key: SecretStr | None = Field(default=None)
-    firecrawl_base_url: str | None = Field(default=None)
     serpapi_api_key: SecretStr | None = Field(default=None)
     tavily_api_key: SecretStr | None = Field(default=None)
     jina_api_key: SecretStr | None = Field(default=None)
