@@ -60,14 +60,15 @@ from ii_agent.tools.pdf_tool import PdfTextExtractTool
 from ii_agent.tools.deep_research_tool import DeepResearchTool
 from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
 from ii_agent.utils.constants import TOKEN_BUDGET
+from ii_agent.core.storage.models.settings import Settings
 
 
 def get_system_tools(
     client: LLMClient,
     workspace_manager: WorkspaceManager,
     message_queue: asyncio.Queue,
+    settings: Settings,
     container_id: Optional[str] = None,
-    ask_user_permission: bool = False,
     tool_args: Dict[str, Any] = None,
 ) -> list[LLMTool]:
     """
@@ -76,6 +77,7 @@ def get_system_tools(
     Returns:
         list[LLMTool]: A list of all system tools.
     """
+    ask_user_permission = False # Not support
     if container_id is not None:
         bash_tool = create_docker_bash_tool(
             container=container_id, ask_user_permission=ask_user_permission
@@ -95,8 +97,8 @@ def get_system_tools(
 
     tools = [
         MessageTool(),
-        WebSearchTool(),
-        VisitWebpageTool(),
+        WebSearchTool(settings=settings),
+        VisitWebpageTool(settings=settings),
         StaticDeployTool(workspace_manager=workspace_manager),
         StrReplaceEditorTool(
             workspace_manager=workspace_manager, message_queue=message_queue
@@ -111,7 +113,7 @@ def get_system_tools(
         ),
         DisplayImageTool(workspace_manager=workspace_manager),
     ]
-    image_search_tool = ImageSearchTool()
+    image_search_tool = ImageSearchTool(settings=settings)
     if image_search_tool.is_available():
         tools.append(image_search_tool)
 
@@ -124,37 +126,38 @@ def get_system_tools(
         if tool_args.get("pdf", False):
             tools.append(PdfTextExtractTool(workspace_manager=workspace_manager))
         if tool_args.get("media_generation", False):
-            # Check if either Vertex AI or Google AI Studio is configured
-            has_vertex_ai = os.environ.get("MEDIA_GCP_PROJECT_ID") and os.environ.get("MEDIA_GCP_LOCATION")
-            has_genai = os.environ.get("GEMINI_API_KEY")
-            
-            if has_vertex_ai or has_genai:
-                # Image generation works with both APIs
-                tools.append(ImageGenerateTool(workspace_manager=workspace_manager))
+            # Check if media config is available in settings
+            has_media_config = False
+            if settings and settings.media_config:
+                if (settings.media_config.gcp_project_id and settings.media_config.gcp_location) or (settings.media_config.google_ai_studio_api_key):
+                    has_media_config = True
                 
-                # Video generation works with both APIs
-                if tool_args.get("video_generation", False):
+            if has_media_config:
+                tools.append(ImageGenerateTool(workspace_manager=workspace_manager, settings=settings))
+                if tool_args.get("video_generation", True):
                     tools.extend([
-                        VideoGenerateFromTextTool(workspace_manager=workspace_manager), 
-                        VideoGenerateFromImageTool(workspace_manager=workspace_manager),
-                        LongVideoGenerateFromTextTool(workspace_manager=workspace_manager),
-                        LongVideoGenerateFromImageTool(workspace_manager=workspace_manager)
+                        VideoGenerateFromTextTool(workspace_manager=workspace_manager, settings=settings), 
+                        VideoGenerateFromImageTool(workspace_manager=workspace_manager, settings=settings),
+                        LongVideoGenerateFromTextTool(workspace_manager=workspace_manager, settings=settings),
+                        LongVideoGenerateFromImageTool(workspace_manager=workspace_manager, settings=settings)
                     ])
+                if settings.media_config.google_ai_studio_api_key:
+                    tools.append(SingleSpeakerSpeechGenerationTool(workspace_manager=workspace_manager, settings=settings))
+        if tool_args.get("audio_generation", False):
+            # Check if audio config is available in settings
+            has_audio_config = False
+            if settings and settings.audio_config:
+                if (settings.audio_config.openai_api_key and 
+                    settings.audio_config.azure_endpoint):
+                    has_audio_config = True
                 
-                # Speech generation requires Google AI Studio (GEMINI_API_KEY)
-                if tool_args.get("speech_generation", False) and has_genai:
-                    tools.extend([
-                        SingleSpeakerSpeechGenerationTool(workspace_manager=workspace_manager),
-                    ])
-        if tool_args.get("audio_generation", False) and (
-            os.environ.get("OPEN_API_KEY") and os.environ.get("AZURE_OPENAI_ENDPOINT")
-        ):
-            tools.extend(
-                [
-                    AudioTranscribeTool(workspace_manager=workspace_manager),
-                    AudioGenerateTool(workspace_manager=workspace_manager),
-                ]
-            )
+            if has_audio_config:
+                tools.extend(
+                    [
+                        AudioTranscribeTool(workspace_manager=workspace_manager, settings=settings),
+                        AudioGenerateTool(workspace_manager=workspace_manager, settings=settings),
+                    ]
+                )
             
         # Browser tools
         if tool_args.get("browser", False):

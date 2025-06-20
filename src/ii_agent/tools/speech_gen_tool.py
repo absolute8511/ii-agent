@@ -16,6 +16,7 @@ from ii_agent.tools.base import (
     ToolImplOutput,
 )
 from ii_agent.utils import WorkspaceManager
+from ii_agent.core.storage.models.settings import Settings
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
@@ -152,25 +153,28 @@ Automatic language detection from input text."""
         "required": ["text", "output_filename"]
     }
 
-    def __init__(self, workspace_manager: WorkspaceManager):
+    def __init__(self, workspace_manager: WorkspaceManager, settings: Settings):
         super().__init__()
         self.workspace_manager = workspace_manager
+        self.settings = settings
         
-        if not GEMINI_API_KEY:
+        if settings and settings.media_config:
+            self.google_ai_studio_api_key = settings.media_config.google_ai_studio_api_key
+        else:
             raise ValueError(
-                "GEMINI_API_KEY environment variable is not set. "
-                "Please set it to use speech generation features."
+                "Required GEMINI_API_KEY for speech generation."
             )
         
-        try:
+        if self.google_ai_studio_api_key:
             self.client = genai.Client(
                 http_options={"api_version": "v1beta"},
-                api_key=GEMINI_API_KEY,
+                api_key=self.google_ai_studio_api_key.get_secret_value(),
             )
             print("Initialized Google AI Studio for speech generation")
-        except Exception as e:
-            print(f"Error initializing Google AI Studio: {e}")
-            raise
+        else:
+            raise ValueError(
+                "Required GEMINI_API_KEY for speech generation."
+            )
 
     async def run_impl(
         self,
@@ -223,7 +227,7 @@ Automatic language detection from input text."""
             # Find the audio part
             audio_part = None
             for part in response.candidates[0].content.parts:
-                if hasattr(part, 'inline_data') and part.inline_data.mime_type.startswith('audio/'):
+                if hasattr(part, 'inline_data') and part.inline_data.mime_type.startswith('audio'):
                     audio_part = part
                     break
             
