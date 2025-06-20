@@ -30,11 +30,11 @@ fi
 echo "Using HOST_IP: $HOST_IP"
 
 #BACKEND ENVIRONMENT VARIABLES
-export PROXY_SERVER_PORT=9000
 export FRONTEND_PORT=3000
 export BACKEND_PORT=8000
 export WORKSPACE_PATH=${PWD}/workspace
-export PUBLIC_DOMAIN=${HOST_IP}.nip.io:${PROXY_SERVER_PORT}
+export PUBLIC_DOMAIN=${HOST_IP}.nip.io
+export NGINX_PORT=8080
 
 # Start docker-compose with the HOST_IP variable
 COMPOSE_PROJECT_NAME=agent docker compose -f docker/docker-compose.yaml --profile $COMPOSE_PROFILE up "$@"

@@ -35,29 +35,11 @@ class RegisterDeploymentTool(LLMTool):
         self.config = config
 
     def _register_docker_port(self, port: str) -> str:
-        # Make request to register service
-        import httpx
-
-        client = httpx.Client()
-        response = client.post(
-            f"{os.getenv('PROXY_SERVER_URL')}/api/register",
-            json={
-                "port": port,
-                "container_name": self.workspace_manager.root.name,
-            },
-        )
-
-        if response.status_code != 200:
-            return ToolImplOutput(
-                f"Failed to register service: {response.text}",
-                f"Failed to register service: {response.text}",
-            )
-
         # Get the UUID from the workspace path
         connection_uuid = self.workspace_manager.root.name
 
         # Construct the public URL using the base URL and connection UUID
-        public_url = f"http://{connection_uuid}-{port}.{os.getenv('PUBLIC_DOMAIN')}"
+        public_url = f"http://{connection_uuid}-{port}.{os.getenv('PUBLIC_DOMAIN')}:{os.getenv('NGINX_PORT')}"
 
         return public_url
 
