@@ -288,6 +288,10 @@ const ApiKeysDialog = ({
           type: "SET_AVAILABLE_MODELS",
           payload: availableModelNames,
         });
+        dispatch({
+          type: "SET_SELECTED_MODEL",
+          payload: availableModelNames[0],
+        });
 
         toast.success("Configuration saved successfully");
         onClose();
