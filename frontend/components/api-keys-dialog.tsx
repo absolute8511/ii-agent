@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { isEmpty } from "lodash";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Pencil, Trash, Plus } from "lucide-react";
+import { Pencil, Trash, Plus } from "lucide-react";
 import { useAppContext } from "@/context/app-context";
 
 import {
@@ -25,11 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { IModel, LLMConfig } from "@/typings/agent";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { PROVIDER_MODELS } from "@/constants/models";
 
 interface ApiKeysDialogProps {
@@ -86,7 +81,7 @@ const ApiKeysDialog = ({
 
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showFirecrawlBaseUrl, setShowFirecrawlBaseUrl] = useState(false); // Add state for toggle
+  // const [showFirecrawlBaseUrl, setShowFirecrawlBaseUrl] = useState(false); // Add state for toggle
 
   useEffect(() => {
     fetchSettings();
@@ -504,7 +499,7 @@ const ApiKeysDialog = ({
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="firecrawl-key">FireCrawl API Key</Label>
-                      <Tooltip>
+                      {/* <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
@@ -526,7 +521,7 @@ const ApiKeysDialog = ({
                             ? "Hide Base URL"
                             : "Show Base URL"}
                         </TooltipContent>
-                      </Tooltip>
+                      </Tooltip> */}
                     </div>
                     <Input
                       id="firecrawl-key"
@@ -543,7 +538,7 @@ const ApiKeysDialog = ({
                     />
                   </div>
 
-                  {showFirecrawlBaseUrl && (
+                  {/* {showFirecrawlBaseUrl && (
                     <div className="space-y-2">
                       <Label htmlFor="firecrawl-base-url">
                         FireCrawl Base URL
@@ -562,7 +557,7 @@ const ApiKeysDialog = ({
                         className="bg-[#35363a] border-[#ffffff0f]"
                       />
                     </div>
-                  )}
+                  )} */}
 
                   <div className="space-y-2">
                     <Label htmlFor="serpapi-key">SerpAPI API Key</Label>
@@ -1068,6 +1063,27 @@ const ApiKeysDialog = ({
                       }
                     }}
                     placeholder="Enter Azure OpenAI endpoint"
+                    className="bg-[#35363a] border-[#ffffff0f]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="api-key">API Key</Label>
+                  <Input
+                    id="api-key"
+                    type="password"
+                    value={editingConfig?.config.api_key || ""}
+                    onChange={(e) => {
+                      if (editingConfig) {
+                        setEditingConfig({
+                          ...editingConfig,
+                          config: {
+                            ...editingConfig.config,
+                            api_key: e.target.value,
+                          },
+                        });
+                      }
+                    }}
+                    placeholder="Enter Gemini API Key"
                     className="bg-[#35363a] border-[#ffffff0f]"
                   />
                 </div>
