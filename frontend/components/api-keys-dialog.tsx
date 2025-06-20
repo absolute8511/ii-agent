@@ -1062,7 +1062,7 @@ const ApiKeysDialog = ({
                         });
                       }
                     }}
-                    placeholder="Enter Gemini API Key"
+                    placeholder="Enter API Key"
                     className="bg-[#35363a] border-[#ffffff0f]"
                   />
                 </div>
