@@ -20,11 +20,11 @@ services:
     init: true # Needed for the browser use
     ports:
       - "${BACKEND_PORT:-8000}:8000"
-    env_file:
-      - .env
     environment:
       #Path of mounted file in docker
       - GOOGLE_APPLICATION_CREDENTIALS=/app/google-application-credentials.json
+      # Static file base url
+      - STATIC_FILE_BASE_URL=${STATIC_FILE_BASE_URL:-http://localhost:8000}
     volumes:
       #If file doesn't exist, use a dummy file
       - ${GOOGLE_APPLICATION_CREDENTIALS:-./docker/.dummy-credentials.json}:/app/google-application-credentials.json

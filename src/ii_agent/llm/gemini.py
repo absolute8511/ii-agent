@@ -32,7 +32,6 @@ def generate_tool_call_id() -> str:
 class GeminiDirectClient(LLMClient):
     """Use Gemini models via first party API."""
 
-    # def __init__(self, model_name: str, max_retries: int = 2, project_id: None | str = None, region: None | str = None):
     def __init__(self, llm_config: LLMConfig):
         self.model_name = llm_config.model
 
