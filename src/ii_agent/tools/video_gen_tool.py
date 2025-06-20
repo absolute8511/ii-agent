@@ -10,8 +10,12 @@ from typing import Any, Optional
 from google import genai
 from google.genai import types
 
-from google.cloud import storage
-from google.auth.exceptions import DefaultCredentialsError
+try:
+    from google.cloud import storage
+    from google.auth.exceptions import DefaultCredentialsError
+    HAS_GCS = True
+except ImportError:
+    HAS_GCS = False
 
 from ii_agent.tools.base import (
     MessageHistory,
@@ -23,7 +27,15 @@ from ii_agent.utils import WorkspaceManager
 MEDIA_GCP_PROJECT_ID = os.environ.get("MEDIA_GCP_PROJECT_ID")
 MEDIA_GCP_LOCATION = os.environ.get("MEDIA_GCP_LOCATION")
 MEDIA_GCS_OUTPUT_BUCKET = os.environ.get("MEDIA_GCS_OUTPUT_BUCKET")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 DEFAULT_MODEL = "veo-2.0-generate-001"
+
+# Google AI Studio person generation mapping
+GENAI_PERSON_GENERATION_MAP = {
+    "allow_adult": "allow_adult",
+    "dont_allow": "dont_allow",
+    "allow_all": "allow_all"
+}
 
 
 def _get_gcs_client():
@@ -105,8 +117,9 @@ def delete_gcs_blob(gcs_uri: str) -> None:
 
 class VideoGenerateFromTextTool(LLMTool):
     name = "generate_video_from_text"
-    description = """Generates a short video based on a text prompt only using Google's Veo 2 model.
-The generated video will be saved to the specified local path in the workspace."""
+    description = """Generates a short video based on a text prompt using Google's Veo 2 model via Vertex AI or Google AI Studio.
+The generated video will be saved to the specified local path in the workspace.
+Uses Google AI Studio if GEMINI_API_KEY is set, otherwise falls back to Vertex AI if configured."""
     input_schema = {
         "type": "object",
         "properties": {
@@ -146,17 +159,46 @@ The generated video will be saved to the specified local path in the workspace."
 
     def __init__(self, workspace_manager: WorkspaceManager):
         super().__init__()
-        if not MEDIA_GCS_OUTPUT_BUCKET or not MEDIA_GCS_OUTPUT_BUCKET.startswith("gs://"):
-            raise ValueError(
-                "MEDIA_GCS_OUTPUT_BUCKET environment variable must be set to a valid GCS URI (e.g., gs://my-bucket-name)"
-            )
         self.workspace_manager = workspace_manager
-        if not MEDIA_GCP_PROJECT_ID or not MEDIA_GCP_LOCATION:
-            raise ValueError("MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION environment variables not set.")
-        self.client = genai.Client(
-            project=MEDIA_GCP_PROJECT_ID, location=MEDIA_GCP_LOCATION, vertexai=True
-        )
+        self.api_type = None
+        self.client = None
         self.video_model = DEFAULT_MODEL
+
+        # Prefer Google AI Studio if GEMINI_API_KEY is available
+        if GEMINI_API_KEY:
+            try:
+                self.client = genai.Client(
+                    http_options={"api_version": "v1beta"},
+                    api_key=GEMINI_API_KEY,
+                )
+                self.api_type = "genai"
+                print("Using Google AI Studio for video generation")
+            except Exception as e:
+                print(f"Error initializing Google AI Studio: {e}")
+                self.client = None
+
+        # Fall back to Vertex AI if Google AI Studio is not available
+        if not self.api_type and MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION:
+            # For Vertex AI, we need GCS bucket
+            if not MEDIA_GCS_OUTPUT_BUCKET or not MEDIA_GCS_OUTPUT_BUCKET.startswith("gs://"):
+                raise ValueError(
+                    "MEDIA_GCS_OUTPUT_BUCKET environment variable must be set to a valid GCS URI (e.g., gs://my-bucket-name) for Vertex AI"
+                )
+            try:
+                self.client = genai.Client(
+                    project=MEDIA_GCP_PROJECT_ID, location=MEDIA_GCP_LOCATION, vertexai=True
+                )
+                self.api_type = "vertex"
+                print("Using Vertex AI for video generation")
+            except Exception as e:
+                print(f"Error initializing Vertex AI: {e}")
+                self.client = None
+
+        if not self.api_type:
+            raise ValueError(
+                "Neither Google AI Studio (GEMINI_API_KEY) nor Vertex AI (MEDIA_GCP_PROJECT_ID, MEDIA_GCP_LOCATION, and MEDIA_GCS_OUTPUT_BUCKET) are properly configured. "
+                "Please set either GEMINI_API_KEY or all Vertex AI environment variables."
+            )
 
     async def run_impl(
         self,
@@ -184,23 +226,38 @@ The generated video will be saved to the specified local path in the workspace."
         )
         local_output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Veo outputs to GCS, so we need a unique GCS path for the intermediate file
-        unique_gcs_filename = f"veo_temp_output_{uuid.uuid4().hex}.mp4"
-        gcs_output_uri = f"{MEDIA_GCS_OUTPUT_BUCKET.rstrip('/')}/{unique_gcs_filename}"
-
         try:
-            operation = self.client.models.generate_videos(
-                model=self.video_model,
-                prompt=prompt,
-                config=types.GenerateVideosConfig(
+            if self.api_type == "genai":
+                # Google AI Studio API
+                video_config = types.GenerateVideosConfig(
+                    person_generation=GENAI_PERSON_GENERATION_MAP.get(person_generation_setting, "dont_allow"),
                     aspect_ratio=aspect_ratio,
-                    output_gcs_uri=gcs_output_uri,  # Veo requires a GCS URI
                     number_of_videos=1,
                     duration_seconds=duration_seconds,
-                    person_generation=person_generation_setting,
-                    enhance_prompt=enhance_prompt,
-                ),
-            )
+                )
+                
+                operation = self.client.models.generate_videos(
+                    model=self.video_model,
+                    prompt=prompt,
+                    config=video_config,
+                )
+            else:  # vertex AI
+                # Veo outputs to GCS, so we need a unique GCS path for the intermediate file
+                unique_gcs_filename = f"veo_temp_output_{uuid.uuid4().hex}.mp4"
+                gcs_output_uri = f"{MEDIA_GCS_OUTPUT_BUCKET.rstrip('/')}/{unique_gcs_filename}"
+                
+                operation = self.client.models.generate_videos(
+                    model=self.video_model,
+                    prompt=prompt,
+                    config=types.GenerateVideosConfig(
+                        aspect_ratio=aspect_ratio,
+                        output_gcs_uri=gcs_output_uri,  # Veo requires a GCS URI
+                        number_of_videos=1,
+                        duration_seconds=duration_seconds,
+                        person_generation=person_generation_setting,
+                        enhance_prompt=enhance_prompt,
+                    ),
+                )
 
             # Poll for completion (as in the notebook)
             # Consider making this truly async in a real agent to not block the main thread
@@ -237,13 +294,19 @@ The generated video will be saved to the specified local path in the workspace."
                     {"success": False, "error": "No video output from API"},
                 )
 
-            generated_video_gcs_uri = operation.result.generated_videos[0].video.uri
-
-            # Download the video from GCS to the local workspace
-            download_gcs_file(generated_video_gcs_uri, local_output_path)
-
-            # Delete the temporary file from GCS
-            delete_gcs_blob(generated_video_gcs_uri)
+            if self.api_type == "genai":
+                # Google AI Studio - download directly
+                generated_video = operation.result.generated_videos[0]
+                self.client.files.download(file=generated_video.video)
+                generated_video.video.save(str(local_output_path))
+            else:  # vertex AI
+                generated_video_gcs_uri = operation.result.generated_videos[0].video.uri
+                
+                # Download the video from GCS to the local workspace
+                download_gcs_file(generated_video_gcs_uri, local_output_path)
+                
+                # Delete the temporary file from GCS
+                delete_gcs_blob(generated_video_gcs_uri)
 
             return ToolImplOutput(
                 f"Successfully generated video from text and saved to '{relative_output_filename}'",
@@ -275,7 +338,7 @@ SUPPORTED_IMAGE_FORMATS_MIMETYPE = {
 
 class VideoGenerateFromImageTool(LLMTool):
     name = "generate_video_from_image"
-    description = f"""Generates a short video by adding motion to an input image using Google's Veo 2 model.
+    description = f"""Generates a short video by adding motion to an input image using Google's Veo 2 model via Vertex AI or Google AI Studio.
 Optionally, a text prompt can be provided to guide the motion.
 The input image must be in the workspace. Supported image formats: {", ".join(SUPPORTED_IMAGE_FORMATS_MIMETYPE.keys())}.
 The generated video will be saved to the specified local path in the workspace."""
@@ -318,12 +381,40 @@ The generated video will be saved to the specified local path in the workspace."
     def __init__(self, workspace_manager: WorkspaceManager):
         super().__init__()
         self.workspace_manager = workspace_manager
-        if not MEDIA_GCP_PROJECT_ID or not MEDIA_GCP_LOCATION:
-            raise ValueError("MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION environment variables not set.")
-        self.genai_client = genai.Client(
-            project=MEDIA_GCP_PROJECT_ID, location=MEDIA_GCP_LOCATION, vertexai=True
-        )
+        self.api_type = None
+        self.genai_client = None
         self.video_model = DEFAULT_MODEL
+
+        # Prefer Google AI Studio if GEMINI_API_KEY is available
+        if GEMINI_API_KEY:
+            try:
+                self.genai_client = genai.Client(
+                    http_options={"api_version": "v1beta"},
+                    api_key=GEMINI_API_KEY,
+                )
+                self.api_type = "genai"
+                print("Using Google AI Studio for video generation")
+            except Exception as e:
+                print(f"Error initializing Google AI Studio: {e}")
+                self.genai_client = None
+
+        # Fall back to Vertex AI if Google AI Studio is not available
+        if not self.api_type and MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION:
+            try:
+                self.genai_client = genai.Client(
+                    project=MEDIA_GCP_PROJECT_ID, location=MEDIA_GCP_LOCATION, vertexai=True
+                )
+                self.api_type = "vertex"
+                print("Using Vertex AI for video generation")
+            except Exception as e:
+                print(f"Error initializing Vertex AI: {e}")
+                self.genai_client = None
+
+        if not self.api_type:
+            raise ValueError(
+                "Neither Google AI Studio (GEMINI_API_KEY) nor Vertex AI (MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION) are properly configured. "
+                "Please set either GEMINI_API_KEY or both MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION environment variables."
+            )
 
     async def run_impl(
         self,
@@ -369,34 +460,52 @@ The generated video will be saved to the specified local path in the workspace."
             )
 
         mime_type = SUPPORTED_IMAGE_FORMATS_MIMETYPE[image_suffix]
-
-        temp_gcs_image_filename = f"veo_temp_input_{uuid.uuid4().hex}{image_suffix}"
-        temp_gcs_image_uri = (
-            f"{MEDIA_GCS_OUTPUT_BUCKET.rstrip('/')}/{temp_gcs_image_filename}"
-        )
-
+        
+        temp_gcs_image_uri = None
         generated_video_gcs_uri_for_cleanup = None  # For finally block
 
         try:
-            upload_to_gcs(local_input_image_path, temp_gcs_image_uri)
+            if self.api_type == "genai":
+                # Google AI Studio - use image bytes directly
+                with open(local_input_image_path, 'rb') as f:
+                    image_bytes = f.read()
+                
+                generate_videos_kwargs = {
+                    "model": self.video_model,
+                    "image": types.Image(image_bytes=image_bytes, mime_type=mime_type),
+                    "config": types.GenerateVideosConfig(
+                        # person_generation is not allowed for image-to-video generation in Google AI Studio
+                        aspect_ratio=aspect_ratio,
+                        number_of_videos=1,
+                        duration_seconds=duration_seconds,
+                    ),
+                }
+            else:  # vertex AI
+                temp_gcs_image_filename = f"veo_temp_input_{uuid.uuid4().hex}{image_suffix}"
+                temp_gcs_image_uri = (
+                    f"{MEDIA_GCS_OUTPUT_BUCKET.rstrip('/')}/{temp_gcs_image_filename}"
+                )
+                
+                upload_to_gcs(local_input_image_path, temp_gcs_image_uri)
 
-            unique_gcs_video_filename = f"veo_temp_output_{uuid.uuid4().hex}.mp4"
-            gcs_output_video_uri = (
-                f"{MEDIA_GCS_OUTPUT_BUCKET.rstrip('/')}/{unique_gcs_video_filename}"
-            )
-            generated_video_gcs_uri_for_cleanup = gcs_output_video_uri
+                unique_gcs_video_filename = f"veo_temp_output_{uuid.uuid4().hex}.mp4"
+                gcs_output_video_uri = (
+                    f"{MEDIA_GCS_OUTPUT_BUCKET.rstrip('/')}/{unique_gcs_video_filename}"
+                )
+                generated_video_gcs_uri_for_cleanup = gcs_output_video_uri
 
-            generate_videos_kwargs = {
-                "model": self.video_model,
-                "image": types.Image(gcs_uri=temp_gcs_image_uri, mime_type=mime_type),
-                "config": types.GenerateVideosConfig(
-                    aspect_ratio=aspect_ratio,
-                    output_gcs_uri=gcs_output_video_uri,
-                    number_of_videos=1,
-                    duration_seconds=duration_seconds,
-                    person_generation=person_generation_setting,
-                ),
-            }
+                generate_videos_kwargs = {
+                    "model": self.video_model,
+                    "image": types.Image(gcs_uri=temp_gcs_image_uri, mime_type=mime_type),
+                    "config": types.GenerateVideosConfig(
+                        aspect_ratio=aspect_ratio,
+                        output_gcs_uri=gcs_output_video_uri,
+                        number_of_videos=1,
+                        duration_seconds=duration_seconds,
+                        person_generation=person_generation_setting,
+                    ),
+                }
+            
             if prompt:
                 generate_videos_kwargs["prompt"] = prompt
 
@@ -427,15 +536,21 @@ The generated video will be saved to the specified local path in the workspace."
             if not operation.response or not operation.result.generated_videos:
                 raise Exception("Video generation completed but no video was returned.")
 
-            # The GCS URI of the *actual* generated video might differ slightly if Veo adds prefixes/folders
-            actual_generated_video_gcs_uri = operation.result.generated_videos[
-                0
-            ].video.uri
-            generated_video_gcs_uri_for_cleanup = (
-                actual_generated_video_gcs_uri  # Update for accurate cleanup
-            )
+            if self.api_type == "genai":
+                # Google AI Studio - download directly
+                generated_video = operation.result.generated_videos[0]
+                self.genai_client.files.download(file=generated_video.video)
+                generated_video.video.save(str(local_output_video_path))
+            else:  # vertex AI
+                # The GCS URI of the *actual* generated video might differ slightly if Veo adds prefixes/folders
+                actual_generated_video_gcs_uri = operation.result.generated_videos[
+                    0
+                ].video.uri
+                generated_video_gcs_uri_for_cleanup = (
+                    actual_generated_video_gcs_uri  # Update for accurate cleanup
+                )
 
-            download_gcs_file(actual_generated_video_gcs_uri, local_output_video_path)
+                download_gcs_file(actual_generated_video_gcs_uri, local_output_video_path)
 
             return ToolImplOutput(
                 f"Successfully generated video from image '{relative_image_path}' and saved to '{relative_output_filename}'.",
@@ -453,8 +568,8 @@ The generated video will be saved to the specified local path in the workspace."
                 {"success": False, "error": str(e)},
             )
         finally:
-            # Clean up temporary GCS files
-            if temp_gcs_image_uri:
+            # Clean up temporary files
+            if self.api_type == "vertex" and temp_gcs_image_uri:
                 try:
                     delete_gcs_blob(temp_gcs_image_uri)
                 except Exception as e_cleanup_img:
@@ -462,9 +577,8 @@ The generated video will be saved to the specified local path in the workspace."
                         f"Warning: Failed to clean up GCS input image {temp_gcs_image_uri}: {e_cleanup_img}"
                     )
 
-            if (
-                generated_video_gcs_uri_for_cleanup
-            ):  # This will be the actual output URI from Veo
+            if self.api_type == "vertex" and generated_video_gcs_uri_for_cleanup:
+                # This will be the actual output URI from Veo
                 try:
                     delete_gcs_blob(generated_video_gcs_uri_for_cleanup)
                 except Exception as e_cleanup_vid:
@@ -516,8 +630,15 @@ The generated video will be saved to the specified local path in the workspace."
     def __init__(self, workspace_manager: WorkspaceManager):
         super().__init__()
         self.workspace_manager = workspace_manager
-        if not MEDIA_GCP_PROJECT_ID:
-            raise ValueError("MEDIA_GCP_PROJECT_ID environment variable not set.")
+        # Check if either Vertex AI or Google AI Studio is configured
+        has_vertex_ai = MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION
+        has_genai = GEMINI_API_KEY
+        
+        if not (has_vertex_ai or has_genai):
+            raise ValueError(
+                "Neither Google AI Studio (GEMINI_API_KEY) nor Vertex AI (MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION) are configured. "
+                "Please set either GEMINI_API_KEY or both MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION environment variables."
+            )
 
     async def run_impl(
         self,

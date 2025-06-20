@@ -18,7 +18,12 @@ from ii_agent.tools.str_replace_tool_relative import StrReplaceEditorTool
 from ii_agent.tools.static_deploy_tool import StaticDeployTool
 from ii_agent.tools.sequential_thinking_tool import SequentialThinkingTool
 from ii_agent.tools.message_tool import MessageTool
-from ii_agent.tools.complete_tool import CompleteTool, ReturnControlToUserTool, CompleteToolReviewer, ReturnControlToGeneralAgentTool
+from ii_agent.tools.complete_tool import (
+    CompleteTool, 
+    ReturnControlToUserTool, 
+    CompleteToolReviewer, 
+    ReturnControlToGeneralAgentTool
+)
 from ii_agent.tools.bash_tool import create_bash_tool, create_docker_bash_tool
 from ii_agent.browser.browser import Browser
 from ii_agent.utils import WorkspaceManager
@@ -50,6 +55,7 @@ from ii_agent.tools.video_gen_tool import (
     LongVideoGenerateFromImageTool,
 )
 from ii_agent.tools.image_gen_tool import ImageGenerateTool
+from ii_agent.tools.speech_gen_tool import SingleSpeakerSpeechGenerationTool
 from ii_agent.tools.pdf_tool import PdfTextExtractTool
 from ii_agent.tools.deep_research_tool import DeepResearchTool
 from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
@@ -117,18 +123,29 @@ def get_system_tools(
             tools.append(DeepResearchTool())
         if tool_args.get("pdf", False):
             tools.append(PdfTextExtractTool(workspace_manager=workspace_manager))
-        if tool_args.get("media_generation", False) and (
-            os.environ.get("MEDIA_GCP_PROJECT_ID")
-            and os.environ.get("MEDIA_GCP_LOCATION")
-        ):
-            tools.append(ImageGenerateTool(workspace_manager=workspace_manager))
-            if tool_args.get("video_generation", False):
-                tools.extend([
-                    VideoGenerateFromTextTool(workspace_manager=workspace_manager), 
-                    VideoGenerateFromImageTool(workspace_manager=workspace_manager),
-                    LongVideoGenerateFromTextTool(workspace_manager=workspace_manager),
-                    LongVideoGenerateFromImageTool(workspace_manager=workspace_manager)
-                ])
+        if tool_args.get("media_generation", False):
+            # Check if either Vertex AI or Google AI Studio is configured
+            has_vertex_ai = os.environ.get("MEDIA_GCP_PROJECT_ID") and os.environ.get("MEDIA_GCP_LOCATION")
+            has_genai = os.environ.get("GEMINI_API_KEY")
+            
+            if has_vertex_ai or has_genai:
+                # Image generation works with both APIs
+                tools.append(ImageGenerateTool(workspace_manager=workspace_manager))
+                
+                # Video generation works with both APIs
+                if tool_args.get("video_generation", False):
+                    tools.extend([
+                        VideoGenerateFromTextTool(workspace_manager=workspace_manager), 
+                        VideoGenerateFromImageTool(workspace_manager=workspace_manager),
+                        LongVideoGenerateFromTextTool(workspace_manager=workspace_manager),
+                        LongVideoGenerateFromImageTool(workspace_manager=workspace_manager)
+                    ])
+                
+                # Speech generation requires Google AI Studio (GEMINI_API_KEY)
+                if tool_args.get("speech_generation", False) and has_genai:
+                    tools.extend([
+                        SingleSpeakerSpeechGenerationTool(workspace_manager=workspace_manager),
+                    ])
         if tool_args.get("audio_generation", False) and (
             os.environ.get("OPEN_API_KEY") and os.environ.get("AZURE_OPENAI_ENDPOINT")
         ):

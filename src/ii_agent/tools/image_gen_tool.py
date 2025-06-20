@@ -3,11 +3,24 @@
 import os
 from pathlib import Path
 from typing import Any, Optional
+from io import BytesIO
 
-import vertexai
-from vertexai.preview.vision_models import (
-    ImageGenerationModel,
-)  # Use preview for Imagen 3
+try:
+    from google import genai
+    HAS_GENAI = True
+except ImportError:
+    HAS_GENAI = False
+
+try:
+    import vertexai
+    from vertexai.preview.vision_models import (
+        ImageGenerationModel,
+    )  # Use preview for Imagen 3
+    HAS_VERTEX = True
+except ImportError:
+    HAS_VERTEX = False
+
+from PIL import Image
 
 from ii_agent.tools.base import (
     MessageHistory,
@@ -18,15 +31,23 @@ from ii_agent.utils import WorkspaceManager
 
 MEDIA_GCP_PROJECT_ID = os.environ.get("MEDIA_GCP_PROJECT_ID")
 MEDIA_GCP_LOCATION = os.environ.get("MEDIA_GCP_LOCATION")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 SUPPORTED_ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4"]
 SAFETY_FILTER_LEVELS = ["block_some", "block_most", "block_few"]
 PERSON_GENERATION_OPTIONS = ["allow_adult", "dont_allow", "allow_all"]
 
+# Google AI Studio person generation mapping
+GENAI_PERSON_GENERATION_MAP = {
+    "allow_adult": "ALLOW_ADULT",
+    "dont_allow": "DONT_ALLOW",
+    "allow_all": "ALLOW_ALL"
+}
+
 
 class ImageGenerateTool(LLMTool):
     name = "generate_image_from_text"
-    description = """Generates an image based on a text prompt using Google's Imagen 3 model via Vertex AI.
+    description = """Generates an image based on a text prompt using Google's Imagen 3 model via Vertex AI or Google AI Studio.
 The generated image will be saved to the specified local path in the workspace as a PNG file."""
     input_schema = {
         "type": "object",
@@ -78,32 +99,50 @@ The generated image will be saved to the specified local path in the workspace a
     def __init__(self, workspace_manager: WorkspaceManager):
         super().__init__()
         self.workspace_manager = workspace_manager
-        if not MEDIA_GCP_PROJECT_ID or not MEDIA_GCP_LOCATION:
-            raise ValueError(
-                "MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION environment variables not set."
-            )
+        self.api_type = None
+        self.model = None
+        self.genai_client = None
 
-        try:
-            vertexai.init(project=MEDIA_GCP_PROJECT_ID, location=MEDIA_GCP_LOCATION)
-            self.model = ImageGenerationModel.from_pretrained(
-                "imagen-3.0-generate-002"
-            )  # As per snippet
-        except Exception as e:
-            print(f"Error initializing Vertex AI or loading Imagen model: {e}")
-            self.model = None
+        # Prefer Google AI Studio if GEMINI_API_KEY is available
+        if GEMINI_API_KEY and HAS_GENAI:
+            try:
+                self.genai_client = genai.Client(api_key=GEMINI_API_KEY)
+                self.api_type = "genai"
+                print("Using Google AI Studio for image generation")
+            except Exception as e:
+                print(f"Error initializing Google AI Studio: {e}")
+                self.genai_client = None
+
+        # Fall back to Vertex AI if Google AI Studio is not available
+        if not self.api_type and MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION and HAS_VERTEX:
+            try:
+                vertexai.init(project=MEDIA_GCP_PROJECT_ID, location=MEDIA_GCP_LOCATION)
+                self.model = ImageGenerationModel.from_pretrained(
+                    "imagen-3.0-generate-002"
+                )
+                self.api_type = "vertex"
+                print("Using Vertex AI for image generation")
+            except Exception as e:
+                print(f"Error initializing Vertex AI or loading Imagen model: {e}")
+                self.model = None
+
+        if not self.api_type:
+            raise ValueError(
+                "Neither Google AI Studio (GEMINI_API_KEY) nor Vertex AI (MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION) are properly configured. "
+                "Please set either GEMINI_API_KEY or both MEDIA_GCP_PROJECT_ID and MEDIA_GCP_LOCATION environment variables."
+            )
 
     async def run_impl(
         self,
         tool_input: dict[str, Any],
         message_history: Optional[MessageHistory] = None,
     ) -> ToolImplOutput:
-        if not self.model:
+        if not self.api_type:
             return ToolImplOutput(
-                "Error: Imagen model could not be initialized. Check Vertex AI setup and credentials.",
-                "Imagen model initialization failed.",
-                {"success": False, "error": "Model not initialized"},
+                "Error: No image generation API is configured. Check your environment variables.",
+                "Image generation API not configured.",
+                {"success": False, "error": "API not configured"},
             )
-
         prompt = tool_input["prompt"]
         relative_output_filename = tool_input["output_filename"]
 
@@ -141,26 +180,61 @@ The generated image will be saved to the specified local path in the workspace a
             generate_params["add_watermark"] = add_watermark
 
         try:
-            images = self.model.generate_images(prompt=prompt, **generate_params)
-
-            if not images:  # Response could be None or empty list
-                return ToolImplOutput(
-                    f"Image generation failed for prompt: {prompt}. No images returned.",
-                    "Image generation produced no output.",
-                    {"success": False, "error": "No images returned from API"},
+            if self.api_type == "genai":
+                # Use Google AI Studio API
+                genai_config = {
+                    "number_of_images": tool_input.get("number_of_images", 1),
+                    "output_mime_type": "image/jpeg",  # Google AI Studio uses JPEG
+                    "aspect_ratio": tool_input.get("aspect_ratio", "1:1"),
+                    "person_generation": GENAI_PERSON_GENERATION_MAP.get(
+                        tool_input.get("person_generation", "allow_adult"), "ALLOW_ADULT"
+                    ),
+                }
+                
+                # Note: Google AI Studio doesn't support seed with watermark like Vertex
+                # We'll ignore watermark settings for Google AI Studio
+                
+                result = self.genai_client.models.generate_images(
+                    model="models/imagen-3.0-generate-002",
+                    prompt=prompt,
+                    config=genai_config,
                 )
+                
+                if not result.generated_images:
+                    return ToolImplOutput(
+                        f"Image generation failed for prompt: {prompt}. No images returned.",
+                        "Image generation produced no output.",
+                        {"success": False, "error": "No images returned from API"},
+                    )
+                
+                # Save the first generated image
+                generated_image = result.generated_images[0]
+                image = Image.open(BytesIO(generated_image.image.image_bytes))
+                
+                # Convert to PNG as expected by our tool
+                image.save(str(local_output_path), "PNG")
+                
+            else:  # vertex AI
+                images = self.model.generate_images(prompt=prompt, **generate_params)
 
-            if generate_params["number_of_images"] > 1:
-                print(
-                    f"Warning: Requested {generate_params['number_of_images']} images, but tool currently saves only the first."
-                )
-            try:
-                images[0].save(
-                    location=str(local_output_path), include_generation_parameters=False
-                )  # include_generation_parameters=False as per snippet
-            except Exception as e:
-                msg = "Image generation failed due to safety restrictions or API limitations. Please try modifying your prompt to be more appropriate or let me know if you'd like to try a different approach."
-                return ToolImplOutput(msg, msg, {"success": False, "error": str(e)})
+                if not images:  # Response could be None or empty list
+                    return ToolImplOutput(
+                        f"Image generation failed for prompt: {prompt}. No images returned.",
+                        "Image generation produced no output.",
+                        {"success": False, "error": "No images returned from API"},
+                    )
+
+                if generate_params["number_of_images"] > 1:
+                    print(
+                        f"Warning: Requested {generate_params['number_of_images']} images, but tool currently saves only the first."
+                    )
+                try:
+                    images[0].save(
+                        location=str(local_output_path), include_generation_parameters=False
+                    )  # include_generation_parameters=False as per snippet
+                except Exception as e:
+                    msg = "Image generation failed due to safety restrictions or API limitations. Please try modifying your prompt to be more appropriate or let me know if you'd like to try a different approach."
+                    return ToolImplOutput(msg, msg, {"success": False, "error": str(e)})
             output_url = (
                 f"http://localhost:{self.workspace_manager.file_server_port}/workspace/{relative_output_filename}"
                 if hasattr(self.workspace_manager, "file_server_port")
