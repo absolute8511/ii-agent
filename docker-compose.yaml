@@ -3,11 +3,10 @@ services:
     build:
       context: .
       dockerfile: docker/frontend/Dockerfile
-    image: frontend-${COMPOSE_PROJECT_NAME}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     volumes:
-      - ~/.ii_agent/workspace:/app/data/workspace
+      - ~/.ii_agent/workspace:/.ii_agent/workspace
     environment:
       - NODE_ENV=production
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -18,14 +17,12 @@ services:
     build:
       context: .
       dockerfile: docker/backend/Dockerfile
-    image: backend-${COMPOSE_PROJECT_NAME}
     init: true # Needed for the browser use
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     env_file:
       - .env
     environment:
-      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
       #Path of mounted file in docker
       - GOOGLE_APPLICATION_CREDENTIALS=/app/google-application-credentials.json
     volumes:

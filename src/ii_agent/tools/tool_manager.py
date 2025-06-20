@@ -129,7 +129,7 @@ def get_system_tools(
                 
             if has_media_config:
                 tools.append(ImageGenerateTool(workspace_manager=workspace_manager, settings=settings))
-                if tool_args.get("video_generation", False):
+                if tool_args.get("video_generation", True):
                     tools.extend([
                         VideoGenerateFromTextTool(workspace_manager=workspace_manager, settings=settings), 
                         VideoGenerateFromImageTool(workspace_manager=workspace_manager, settings=settings),

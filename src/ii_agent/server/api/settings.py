@@ -56,23 +56,15 @@ async def store_llm_settings(
     settings: Settings, settings_store: SettingsStore
 ) -> Settings:
     existing_settings = await settings_store.load()
-
-    # Convert to Settings model and merge with existing settings
     if existing_settings:
         if settings.llm_configs and existing_settings.llm_configs:
-            # Merge LLM configs, keeping existing ones if not overridden
-            merged_configs = existing_settings.llm_configs.copy()
-            merged_configs.update(settings.llm_configs)
-            
-            #remove all models that are not in the new settings
-            models_to_remove = [
-                model_name for model_name in merged_configs.keys() 
-                if model_name not in settings.llm_configs.keys()
-            ]
-            for model_name in models_to_remove:
-                merged_configs.pop(model_name)
+            merged_configs = settings.llm_configs.copy()
+
+            for model_name in merged_configs.keys():
+                if merged_configs[model_name].api_key is None:
+                    merged_configs[model_name].api_key = existing_settings.llm_configs[model_name].api_key
             settings.llm_configs = merged_configs
-        
+
         # Keep existing search config if not provided
         if settings.search_config is None and existing_settings.search_config:
             settings.search_config = existing_settings.search_config
