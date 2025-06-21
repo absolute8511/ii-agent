@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y \
     procps \
     lsof \
     git \
-    net-tools
+    net-tools \
+    tmux
 
 # Install pnpm
 RUN npm install -g pnpm

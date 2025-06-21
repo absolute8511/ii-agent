@@ -6,7 +6,7 @@ from typing import Dict, Optional, List
 from dataclasses import dataclass, field
 from enum import Enum
 
-from . import SessionResult
+from .model import SessionResult
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

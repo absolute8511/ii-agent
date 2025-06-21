@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Any
 from ..helper.indent_utils import match_indent, match_indent_by_first_line
 import subprocess
-from . import StrReplaceResponse, StrReplaceToolError
+from .model import StrReplaceResponse, StrReplaceToolError
 
 SNIPPET_LINES: int = 4
 

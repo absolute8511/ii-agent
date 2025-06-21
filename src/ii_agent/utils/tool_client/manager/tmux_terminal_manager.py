@@ -1,3 +1,4 @@
+import shlex
 import pexpect
 import time
 import logging
@@ -5,7 +6,7 @@ import re
 from typing import Dict, Optional
 from dataclasses import dataclass
 
-from . import SessionResult
+from .model import SessionResult
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +27,7 @@ class TmuxSessionManager:
     HOME_DIR = ".WORKING_DIR"  # TODO: Refactor to use constant
     EXECUTION_FINISHED_PATTERN = "TMUX_EXECUTION_FINISHED>>"
     EXECUTION_STARTED_PATTERN = "TMUX_EXECUTION_STARTED>>"
-    COMMAND_START_PATTERN = f" \\\n&& echo '{EXECUTION_FINISHED_PATTERN}' \\\n&& echo '{EXECUTION_STARTED_PATTERN}'"
+    COMMAND_START_PATTERN = """ \\\n&& echo 'TMUX_EXECUTION_FINISHED>>' \\\n&& echo 'TMUX_EXECUTION_STARTED>>' \\\n|| (echo 'TMUX_EXECUTION_FINISHED>>' \\\n&& echo 'TMUX_EXECUTION_STARTED>>')"""
     END_PATTERN = f"\n{EXECUTION_FINISHED_PATTERN}\n{EXECUTION_STARTED_PATTERN}"
 
     def __init__(
@@ -102,17 +103,6 @@ class TmuxSessionManager:
             else:
                 return current_view.split(self.END_PATTERN)[-1]
 
-    """
-    shell:
-    command_start_pattern
-    ....
-    command_end_pattern
-    shell
-    command_start
-    ...
-    command_end_pattern
-    """
-
     def process_output(self, output: str) -> str:
         if self.use_relative_path:
             output = output.replace(self.cwd, self.HOME_DIR).replace(
@@ -146,7 +136,12 @@ class TmuxSessionManager:
             # self.run_command(f"tmux send-keys -t {session_id} 'echo \"TMUX_EXECUTION_FINISHED>>\" && echo \"TMUX_EXECUTION_STARTED>>\"' Enter")
             # Disable history expansion to allow string !
             self.run_command("set +H")
-            self.run_command(f"""tmux send-keys -t {session_id} 'PS2=""' Enter""")
+            self.run_command(
+                f"""tmux send-keys -t {session_id} {shlex.quote("set +H")} Enter"""
+            )
+            self.run_command(
+                f"""tmux send-keys -t {session_id} {shlex.quote("PS2=")} Enter"""
+            )
             current_directory = self.run_command(
                 f"tmux capture-pane -t {session_id}  -p -S - -E -"
             ).strip("\n")
@@ -177,7 +172,7 @@ class TmuxSessionManager:
             command = f"cd {exec_dir} && {command}"
         session = self.sessions.get(id)
         if not session:
-            session = self.create_session(id)
+            session = self.create_session(id, start_dir=self.cwd)
 
         if self.is_session_running(id):
             previous_output = self.get_last_output_raw(id)
@@ -187,15 +182,17 @@ class TmuxSessionManager:
                 output=f"Previous command {session.last_command} is still running. Ensure it's done or run on a new session.\n{previous_output}",
             )
 
-        wrapped_command = command.replace('"', '\\"')
-        self.run_command(f'''tmux send-keys -t {id} "{wrapped_command} \\\\"  Enter ''')
+        wrapped_command = shlex.quote(command + " \\")
+        self.run_command(f"""tmux send-keys -t {id} {wrapped_command}  Enter """)
         # TODO: replace with variables
-        self.run_command(
-            f"""tmux send-keys -t {id} "&& echo 'TMUX_EXECUTION_FINISHED>>' \\\\"  Enter"""
-        )
-        self.run_command(
-            f"""tmux send-keys -t {id} "&& echo 'TMUX_EXECUTION_STARTED>>' "  Enter"""
-        )
+        quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_FINISHED>>' \\")
+        self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
+        quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_STARTED>>' \\")
+        self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
+        quoted_command = shlex.quote("|| (echo 'TMUX_EXECUTION_FINISHED>>' \\")
+        self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
+        quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_STARTED>>')")
+        self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
 
         start_time = time.time()
         while self.is_session_running(id) and (time.time() - start_time) < timeout:
@@ -274,26 +271,28 @@ class TmuxSessionManager:
         if not session:
             return SessionResult(success=False, output=f"Session {id} not found")
 
-        wrapped_input_text = input_text.replace("\\", "\\\\")
         if not press_enter:
-            self.run_command(f'''tmux send-keys -t {id} "{wrapped_input_text}" ''')
+            self.run_command(f"""tmux send-keys -t {id} {shlex.quote(input_text)} """)
         else:
             if (
                 not self.is_session_running(id) and press_enter
             ):  # Edge case where the llm use this to execute a command
+                wrapped_input_text = shlex.quote(input_text + " \\")
                 self.run_command(
-                    f'''tmux send-keys -t {id} "{wrapped_input_text} \\\\"  Enter '''
+                    f"""tmux send-keys -t {id} {wrapped_input_text}  Enter """
                 )
                 # TODO: replace with variables
-                self.run_command(
-                    f"""tmux send-keys -t {id} "&& echo 'TMUX_EXECUTION_FINISHED>>' \\\\"  Enter"""
-                )
-                self.run_command(
-                    f"""tmux send-keys -t {id} "&& echo 'TMUX_EXECUTION_STARTED>>' " Enter"""
-                )
+                quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_FINISHED>>' \\")
+                self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
+                quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_STARTED>>' \\")
+                self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
+                quoted_command = shlex.quote("|| (echo 'TMUX_EXECUTION_FINISHED>>' \\")
+                self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
+                quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_STARTED>>')")
+                self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
             else:
                 self.run_command(
-                    f'''tmux send-keys -t {id} "{wrapped_input_text}" Enter'''
+                    f"""tmux send-keys -t {id} {shlex.quote(input_text)} Enter"""
                 )
 
         # Give the process a moment to process the input
@@ -324,4 +323,5 @@ if __name__ == "__main__":
     manager.shell_exec("test", "pwd")
     while True and command != "exit":
         command = input("Enter command: ")
-        out = manager.shell_write_to_process("test", command, press_enter=False)
+        out = manager.shell_write_to_process("test", command, press_enter=True)
+        print(out.output)
