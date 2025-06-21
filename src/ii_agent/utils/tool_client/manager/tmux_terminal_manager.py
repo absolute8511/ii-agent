@@ -110,6 +110,23 @@ class TmuxSessionManager:
             )
         else:
             output = output
+        # Find all occurrences of content between COMMAND_START_PATTERN and END_PATTERN
+        pattern = (
+            re.escape(self.COMMAND_START_PATTERN)
+            + r"(.*?)"
+            + re.escape(self.END_PATTERN)
+        )
+
+        def truncate_match(match):
+            content = match.group(1)
+            if len(content) > 5000:
+                truncated_content = content[:5000]
+                return f"{self.COMMAND_START_PATTERN}\n[Content Truncated] {truncated_content}{self.END_PATTERN}"
+            else:
+                return match.group(0)
+
+        output = re.sub(pattern, truncate_match, output, flags=re.DOTALL)
+
         # Remove the markers and the command that marks the execution finished and started
         output = output.replace(self.END_PATTERN, "").replace(
             self.COMMAND_START_PATTERN, ""
@@ -322,6 +339,10 @@ if __name__ == "__main__":
     command = "pwd"
     manager.shell_exec("test", "pwd")
     while True and command != "exit":
-        command = input("Enter command: ")
-        out = manager.shell_write_to_process("test", command, press_enter=True)
+        out = manager.shell_exec("test", command)
         print(out.output)
+        command = input("Enter command: ")
+    print("Viewing session")
+    print("--------------------------------")
+    out = manager.shell_view("test")
+    print(out.output)
