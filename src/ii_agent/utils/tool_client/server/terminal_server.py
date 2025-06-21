@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 
-from ..manager.terminal_manager import PexpectSessionManager
+from ..manager import TmuxSessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class TerminalServer:
         )
 
         # Initialize the PexpectSessionManager
-        self.session_manager = PexpectSessionManager(
+        self.session_manager = TmuxSessionManager(
             default_shell=default_shell,
             default_timeout=default_timeout,
             container_id=container_id,

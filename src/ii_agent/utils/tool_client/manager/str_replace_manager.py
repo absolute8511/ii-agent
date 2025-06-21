@@ -1,10 +1,10 @@
 import asyncio
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Any
 from ..helper.indent_utils import match_indent, match_indent_by_first_line
 import subprocess
+from . import StrReplaceResponse, StrReplaceToolError
 
 SNIPPET_LINES: int = 4
 
@@ -65,20 +65,6 @@ def maybe_truncate(content: str, truncate_after: int | None = MAX_RESPONSE_LEN):
         if not truncate_after or len(content) <= truncate_after
         else content[:truncate_after] + TRUNCATED_MESSAGE
     )
-
-
-@dataclass
-class StrReplaceResponse:
-    success: bool
-    file_content: str
-
-
-@dataclass
-class StrReplaceToolError(Exception):
-    message: str
-
-    def __str__(self):
-        return self.message
 
 
 class StrReplaceManager:

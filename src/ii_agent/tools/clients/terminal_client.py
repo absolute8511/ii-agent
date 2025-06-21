@@ -6,10 +6,7 @@ from typing import Any
 import httpx
 
 from ii_agent.tools.clients.config import RemoteClientConfig
-from ii_agent.utils.tool_client.manager.terminal_manager import (
-    PexpectSessionManager,
-    SessionResult,
-)
+from ii_agent.utils.tool_client.manager import SessionResult, PexpectSessionManager
 
 logger = logging.getLogger(__name__)
 

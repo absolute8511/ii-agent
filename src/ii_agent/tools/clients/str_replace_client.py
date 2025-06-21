@@ -6,10 +6,7 @@ from typing import Optional, Any
 import httpx
 
 from ii_agent.tools.clients.config import RemoteClientConfig
-from ii_agent.utils.tool_client.manager.str_replace_manager import (
-    StrReplaceManager,
-    StrReplaceResponse,
-)
+from ii_agent.utils.tool_client.manager import StrReplaceResponse, StrReplaceManager
 
 logger = logging.getLogger(__name__)
 

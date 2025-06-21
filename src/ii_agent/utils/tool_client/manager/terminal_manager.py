@@ -6,15 +6,11 @@ from typing import Dict, Optional, List
 from dataclasses import dataclass, field
 from enum import Enum
 
+from . import SessionResult
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class SessionResult:
-    success: bool
-    output: str
 
 
 class SessionState(Enum):
