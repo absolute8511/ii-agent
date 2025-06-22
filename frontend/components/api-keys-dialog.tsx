@@ -48,6 +48,27 @@ const ApiKeysDialog = ({
   const [selectedModel, setSelectedModel] = useState<IModel>(
     PROVIDER_MODELS.anthropic[0]
   );
+  const [oldSettingData, setOldSettingData] = useState<{
+    llm_configs: LLMConfig[];
+    search_config: {
+      firecrawl_api_key: string;
+      firecrawl_base_url: string;
+      serpapi_api_key: string;
+      tavily_api_key: string;
+      jina_api_key: string;
+    };
+    media_config: {
+      gcp_project_id: string;
+      gcp_location: string;
+      gcs_output_bucket: string;
+      google_ai_studio_api_key: string;
+    };
+    audio_config: {
+      openai_api_key: string;
+      azure_endpoint: string;
+      azure_api_version: string;
+    };
+  }>();
   const [customModelName, setCustomModelName] = useState("");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<{
@@ -67,11 +88,16 @@ const ApiKeysDialog = ({
     jina_api_key: "",
   });
 
-  const [mediaConfig, setMediaConfig] = useState({
+  const [mediaConfig, setMediaConfig] = useState<{
+    gcp_project_id: string | undefined;
+    gcp_location: string | undefined;
+    gcs_output_bucket: string | undefined;
+    google_ai_studio_api_key: string | undefined;
+  }>({
     gcp_project_id: "",
     gcp_location: "",
     gcs_output_bucket: "",
-    google_ai_studio_api_key: "",
+    google_ai_studio_api_key: undefined,
   });
 
   const [audioConfig, setAudioConfig] = useState({
@@ -86,7 +112,7 @@ const ApiKeysDialog = ({
 
   // Add state for media provider selection
   const [mediaProvider, setMediaProvider] = useState<"vertex" | "gemini">(
-    mediaConfig.google_ai_studio_api_key ? "gemini" : "vertex"
+    mediaConfig.gcp_project_id ? "vertex" : "gemini"
   );
 
   useEffect(() => {
@@ -106,6 +132,7 @@ const ApiKeysDialog = ({
       }
 
       const data = await response.json();
+      setOldSettingData(data);
 
       if (isEmpty(data.llm_configs)) {
         onOpen();
@@ -164,10 +191,10 @@ const ApiKeysDialog = ({
         });
 
         // Set the media provider based on which keys are present
-        if (data.media_config.google_ai_studio_api_key) {
-          setMediaProvider("gemini");
-        } else {
+        if (data.media_config.gcp_project_id) {
           setMediaProvider("vertex");
+        } else {
+          setMediaProvider("gemini");
         }
       }
 
@@ -396,10 +423,14 @@ const ApiKeysDialog = ({
         gcp_project_id: "",
         gcp_location: "",
         gcs_output_bucket: "",
+        google_ai_studio_api_key: undefined,
       });
     } else {
       setMediaConfig({
         ...mediaConfig,
+        gcp_project_id: oldSettingData?.media_config.gcp_project_id || "",
+        gcp_location: oldSettingData?.media_config.gcp_location || "",
+        gcs_output_bucket: oldSettingData?.media_config.gcs_output_bucket || "",
         google_ai_studio_api_key: "",
       });
     }
