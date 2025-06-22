@@ -28,7 +28,7 @@ class TmuxSessionManager:
     START_PATTERN = "\nTMUX_EXECUTION_STARTED>>"
     END_PATTERN = "\nTMUX_EXECUTION_FINISHED>>"
     SPLIT_PATTERN = f"{END_PATTERN}\n{START_PATTERN}\n"
-    COMMAND_START_PATTERN = "--- Command sent ---"
+    COMMAND_START_PATTERN = "\n--- Command sent ---\n"
 
     def __init__(
         self,
@@ -52,7 +52,7 @@ class TmuxSessionManager:
 
     def is_session_running(self, id: str) -> bool:
         current_view = self.run_command(f"tmux capture-pane -t {id} -p -S - -E -")
-        last_output_raw = current_view.strip("\n").split(self.SPLIT_PATTERN)[-1]
+        last_output_raw = current_view.split(self.SPLIT_PATTERN)[-1]
         return self.COMMAND_START_PATTERN in last_output_raw
 
     def get_last_output_raw(self, id: str) -> str:
@@ -125,17 +125,28 @@ class TmuxSessionManager:
             self.run_command(
                 f"""tmux send-keys -t {session_id} {shlex.quote("PS2=")} Enter"""
             )
-            prompt_command = f"""PROMPT_COMMAND='echo "{self.END_PATTERN}"'"""
-            self.run_command(
-                f"""tmux send-keys -t {session_id} {shlex.quote(prompt_command)} Enter"""
-            )
-            capture_command = shlex.quote(
-                f"""capture_and_show() {{ if [[ $BASH_COMMAND != $PROMPT_COMMAND && $BASH_COMMAND != "capture_and_show" ]]; then echo "{self.COMMAND_START_PATTERN}"; fi; }}; trap 'capture_and_show' DEBUG"""
-            )
-            self.run_command(
-                f"""tmux send-keys -t {session_id} {capture_command} Enter"""
-            )
+            bash_setup = f"""
+command_chain_active=false
 
+capture_and_show() {{
+    if [[ $BASH_COMMAND != $PROMPT_COMMAND && $BASH_COMMAND != "capture_and_show" ]]; then
+        if [[ "$command_chain_active" == false ]]; then
+            echo "{self.COMMAND_START_PATTERN}"
+            command_chain_active=true
+        fi
+    fi
+}}
+
+reset_and_end() {{
+    command_chain_active=false
+    echo "{self.END_PATTERN}"
+}}
+trap 'capture_and_show' DEBUG
+PROMPT_COMMAND='reset_and_end'
+"""
+            self.run_command(
+                f"""tmux send-keys -t {session_id} {shlex.quote(bash_setup)} Enter"""
+            )
             # Clear tmux history
             self.run_command(f"tmux send-keys -t {session_id} 'clear' Enter")
             self.run_command(f"tmux clear-history -t {session_id}:0")
@@ -147,7 +158,7 @@ class TmuxSessionManager:
             )
 
             # Wrong working directory: Fix it
-            self.work_dir = current_directory.split(":")[-1].strip()
+            self.work_dir = current_directory.split(":")[-1].strip()[:-1]
             self.sessions[session_id] = session
         except Exception as e:
             logger.error(f"Error initializing session {session.id}: {e}")
