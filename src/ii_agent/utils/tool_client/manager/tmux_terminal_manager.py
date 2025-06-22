@@ -1,5 +1,5 @@
 import shlex
-import pexpect
+import subprocess
 import time
 import logging
 import re
@@ -25,10 +25,10 @@ class TmuxSessionManager:
     """Session manager for tmux-based terminal sessions"""
 
     HOME_DIR = ".WORKING_DIR"  # TODO: Refactor to use constant
-    EXECUTION_FINISHED_PATTERN = "TMUX_EXECUTION_FINISHED>>"
-    EXECUTION_STARTED_PATTERN = "TMUX_EXECUTION_STARTED>>"
-    COMMAND_START_PATTERN = """ \\\n&& echo 'TMUX_EXECUTION_FINISHED>>' \\\n&& echo 'TMUX_EXECUTION_STARTED>>' \\\n|| (echo 'TMUX_EXECUTION_FINISHED>>' \\\n&& echo 'TMUX_EXECUTION_STARTED>>')"""
-    END_PATTERN = f"\n{EXECUTION_FINISHED_PATTERN}\n{EXECUTION_STARTED_PATTERN}"
+    START_PATTERN = "\nTMUX_EXECUTION_STARTED>>"
+    END_PATTERN = "\nTMUX_EXECUTION_FINISHED>>"
+    SPLIT_PATTERN = f"{END_PATTERN}\n{START_PATTERN}\n"
+    COMMAND_START_PATTERN = "--- Command sent ---"
 
     def __init__(
         self,
@@ -46,62 +46,25 @@ class TmuxSessionManager:
         self.cwd = cwd
         self.work_dir = None
 
-        self.pexpect_shell, self.pexpect_prompt = self.start_persistent_shell(
-            default_shell=default_shell, default_timeout=default_timeout
-        )
-
-    def start_persistent_shell(self, default_shell: str, default_timeout: int):
-        # Start a new Bash shell
-        child = pexpect.spawn(
-            default_shell, encoding="utf-8", echo=False, timeout=default_timeout
-        )
-        custom_prompt = "PEXPECT_PROMPT>> "
-        child.sendline("stty -onlcr")
-        child.sendline("unset PROMPT_COMMAND")
-        child.sendline(f"PS1='{custom_prompt}'")
-        child.expect(custom_prompt)
-        return child, custom_prompt
-
     def run_command(self, cmd: str) -> str:
-        # Send the command
-        self.pexpect_shell.sendline(cmd)
-        # Wait until we see the prompt again
-        self.pexpect_shell.expect(self.pexpect_prompt)
-        # Output is everything printed before the prompt minus the command itself
-        # pexpect puts the matched prompt in child.after and everything before it in child.before.
-        raw_output = self.pexpect_shell.before.strip()
-        ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-        clean_output = ansi_escape.sub("", raw_output)
-
-        if clean_output.startswith("\r"):
-            clean_output = clean_output[1:]
-
-        return clean_output
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        return result.stdout
 
     def is_session_running(self, id: str) -> bool:
         current_view = self.run_command(f"tmux capture-pane -t {id} -p -S - -E -")
-        if (
-            self.END_PATTERN not in current_view
-            and self.COMMAND_START_PATTERN not in current_view
-        ):
-            return False
-        last_output_raw = current_view.strip("\n").split(self.COMMAND_START_PATTERN)[-1]
-        return self.END_PATTERN not in last_output_raw
+        last_output_raw = current_view.strip("\n").split(self.SPLIT_PATTERN)[-1]
+        return self.COMMAND_START_PATTERN in last_output_raw
 
     def get_last_output_raw(self, id: str) -> str:
         current_view = self.run_command(f"tmux capture-pane -t {id} -p -S - -E -")
-        shell_sessions = current_view.strip("\n").split(self.COMMAND_START_PATTERN)
-        if len(shell_sessions) <= 2:
-            return current_view
+        if self.is_session_running(id):
+            return current_view.split(self.SPLIT_PATTERN)[-1]
         else:
-            if self.END_PATTERN in shell_sessions[-1]:
-                return (
-                    current_view.split(self.END_PATTERN)[-2]
-                    + self.END_PATTERN
-                    + current_view.split(self.END_PATTERN)[-1]
-                )
+            blocks = current_view.split(self.SPLIT_PATTERN)
+            if len(blocks) >= 2:
+                return blocks[-2] + self.SPLIT_PATTERN + blocks[-1]
             else:
-                return current_view.split(self.END_PATTERN)[-1]
+                return blocks[-1]
 
     def process_output(self, output: str) -> str:
         if self.use_relative_path:
@@ -110,7 +73,6 @@ class TmuxSessionManager:
             )
         else:
             output = output
-        # Find all occurrences of content between COMMAND_START_PATTERN and END_PATTERN
         pattern = (
             re.escape(self.COMMAND_START_PATTERN)
             + r"(.*?)"
@@ -120,7 +82,7 @@ class TmuxSessionManager:
         def truncate_match(match):
             content = match.group(1)
             if len(content) > 5000:
-                truncated_content = content[:5000]
+                truncated_content = content[-5000:]
                 return f"{self.COMMAND_START_PATTERN}\n[Content Truncated] {truncated_content}{self.END_PATTERN}"
             else:
                 return match.group(0)
@@ -128,8 +90,11 @@ class TmuxSessionManager:
         output = re.sub(pattern, truncate_match, output, flags=re.DOTALL)
 
         # Remove the markers and the command that marks the execution finished and started
-        output = output.replace(self.END_PATTERN, "").replace(
-            self.COMMAND_START_PATTERN, ""
+        output = (
+            output.replace(self.END_PATTERN + "\n", "")
+            .replace(self.START_PATTERN + "\n", "")
+            .replace(self.COMMAND_START_PATTERN + "\n", "")
+            .strip("\n")
         )
         return output
 
@@ -150,18 +115,38 @@ class TmuxSessionManager:
             self.run_command(
                 f"tmux new-session -d -s {session_id} -c {start_dir} -x 100  /bin/bash"
             )
-            # self.run_command(f"tmux send-keys -t {session_id} 'echo \"TMUX_EXECUTION_FINISHED>>\" && echo \"TMUX_EXECUTION_STARTED>>\"' Enter")
             # Disable history expansion to allow string !
             self.run_command("set +H")
             self.run_command(
                 f"""tmux send-keys -t {session_id} {shlex.quote("set +H")} Enter"""
             )
+            quoted_ps1 = shlex.quote(f"PS1='{self.START_PATTERN}\n\\u@\\h:\\w\\$  '")
+            self.run_command(f"""tmux send-keys -t {session_id} {quoted_ps1} Enter""")
             self.run_command(
                 f"""tmux send-keys -t {session_id} {shlex.quote("PS2=")} Enter"""
             )
-            current_directory = self.run_command(
-                f"tmux capture-pane -t {session_id}  -p -S - -E -"
-            ).strip("\n")
+            prompt_command = f"""PROMPT_COMMAND='echo "{self.END_PATTERN}"'"""
+            self.run_command(
+                f"""tmux send-keys -t {session_id} {shlex.quote(prompt_command)} Enter"""
+            )
+            capture_command = shlex.quote(
+                f"""capture_and_show() {{ if [[ $BASH_COMMAND != $PROMPT_COMMAND && $BASH_COMMAND != "capture_and_show" ]]; then echo "{self.COMMAND_START_PATTERN}"; fi; }}; trap 'capture_and_show' DEBUG"""
+            )
+            self.run_command(
+                f"""tmux send-keys -t {session_id} {capture_command} Enter"""
+            )
+
+            # Clear tmux history
+            self.run_command(f"tmux send-keys -t {session_id} 'clear' Enter")
+            self.run_command(f"tmux clear-history -t {session_id}:0")
+
+            current_directory = (
+                self.run_command(f"tmux capture-pane -t {session_id}  -p -S - -E -")
+                .split(self.SPLIT_PATTERN)[-1]
+                .strip("\n")
+            )
+
+            # Wrong working directory: Fix it
             self.work_dir = current_directory.split(":")[-1].strip()
             self.sessions[session_id] = session
         except Exception as e:
@@ -199,21 +184,13 @@ class TmuxSessionManager:
                 output=f"Previous command {session.last_command} is still running. Ensure it's done or run on a new session.\n{previous_output}",
             )
 
-        wrapped_command = shlex.quote(command + " \\")
+        wrapped_command = shlex.quote(command)
         self.run_command(f"""tmux send-keys -t {id} {wrapped_command}  Enter """)
-        # TODO: replace with variables
-        quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_FINISHED>>' \\")
-        self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
-        quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_STARTED>>' \\")
-        self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
-        quoted_command = shlex.quote("|| (echo 'TMUX_EXECUTION_FINISHED>>' \\")
-        self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
-        quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_STARTED>>')")
-        self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
+        session.last_command = command
 
         start_time = time.time()
         while self.is_session_running(id) and (time.time() - start_time) < timeout:
-            time.sleep(1)
+            time.sleep(0.1)
 
         output = self.get_last_output_raw(id)
         output = self.process_output(output)
@@ -291,33 +268,16 @@ class TmuxSessionManager:
         if not press_enter:
             self.run_command(f"""tmux send-keys -t {id} {shlex.quote(input_text)} """)
         else:
-            if (
-                not self.is_session_running(id) and press_enter
-            ):  # Edge case where the llm use this to execute a command
-                wrapped_input_text = shlex.quote(input_text + " \\")
-                self.run_command(
-                    f"""tmux send-keys -t {id} {wrapped_input_text}  Enter """
-                )
-                # TODO: replace with variables
-                quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_FINISHED>>' \\")
-                self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
-                quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_STARTED>>' \\")
-                self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
-                quoted_command = shlex.quote("|| (echo 'TMUX_EXECUTION_FINISHED>>' \\")
-                self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
-                quoted_command = shlex.quote("&& echo 'TMUX_EXECUTION_STARTED>>')")
-                self.run_command(f"""tmux send-keys -t {id} {quoted_command}  Enter""")
-            else:
-                self.run_command(
-                    f"""tmux send-keys -t {id} {shlex.quote(input_text)} Enter"""
-                )
+            self.run_command(
+                f"""tmux send-keys -t {id} {shlex.quote(input_text)} Enter"""
+            )
 
         # Give the process a moment to process the input
         time.sleep(0.1)
         output = self.get_last_output_raw(id)
         start_time = time.time()
         while self.is_session_running(id) and (time.time() - start_time) < 3:
-            time.sleep(1)
+            time.sleep(0.1)
             output = self.get_last_output_raw(id)
 
         output = self.process_output(output)
@@ -339,7 +299,7 @@ if __name__ == "__main__":
     command = "pwd"
     manager.shell_exec("test", "pwd")
     while True and command != "exit":
-        out = manager.shell_exec("test", command)
+        out = manager.shell_exec("test", command, timeout=5)
         print(out.output)
         command = input("Enter command: ")
     print("Viewing session")
