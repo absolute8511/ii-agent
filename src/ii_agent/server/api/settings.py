@@ -48,6 +48,7 @@ async def load_settings(
     settings_with_api_keys.search_config.serpapi_api_key = None
     settings_with_api_keys.search_config.tavily_api_key = None
     settings_with_api_keys.search_config.jina_api_key = None
+    settings_with_api_keys.media_config.google_ai_studio_api_key = None
     
     return settings_with_api_keys
         
