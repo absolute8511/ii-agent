@@ -91,6 +91,18 @@ class ChatSession:
             )
         except WebSocketDisconnect:
             logger.info("Client disconnected")
+            if self.agent:
+                self.agent.cancel()  # NOTE: Now we cancel the agent on disconnect, the background implementation will come later
+
+            # Wait for active task to complete before cleanup
+            if self.active_task and not self.active_task.done():
+                try:
+                    await self.active_task
+                except asyncio.CancelledError:
+                    logger.info("Active task was cancelled")
+                except Exception as e:
+                    logger.error(f"Error waiting for active task completion: {e}")
+
             self.cleanup()
 
     async def handshake(self):
@@ -158,13 +170,15 @@ class ChatSession:
             init_content = InitAgentContent(**content)
 
             # Create LLM client using factory
-            user_id = None # TODO: Support user id
+            user_id = None  # TODO: Support user id
             settings_store = await FileSettingsStore.get_instance(self.config, user_id)
-            settings = await settings_store.load() 
+            settings = await settings_store.load()
             llm_config = settings.llm_configs.get(init_content.model_name)
             if not llm_config:
-                raise ValueError(f"LLM config not found for model: {init_content.model_name}")
-            
+                raise ValueError(
+                    f"LLM config not found for model: {init_content.model_name}"
+                )
+
             llm_config.thinking_tokens = init_content.thinking_tokens
             client = get_client(llm_config)
 
@@ -195,16 +209,19 @@ class ChatSession:
                     self.file_store,
                     settings=settings,
                 )
-                
+
                 # Start message processor for reviewer
-                self.reviewer_message_processor = self.reviewer_agent.start_message_processing()
+                self.reviewer_message_processor = (
+                    self.reviewer_agent.start_message_processing()
+                )
                 print("Initialized Reviewer")
 
             await self.send_event(
                 RealtimeEvent(
                     type=EventType.AGENT_INITIALIZED,
                     content={
-                        "message": "Agent initialized" + (" with reviewer" if self.enable_reviewer else "")
+                        "message": "Agent initialized"
+                        + (" with reviewer" if self.enable_reviewer else "")
                     },
                 )
             )
@@ -389,13 +406,15 @@ class ChatSession:
         try:
             enhance_content = EnhancePromptContent(**content)
             # Create LLM client using factory
-            user_id = None # TODO: Support user id
+            user_id = None  # TODO: Support user id
             settings_store = await FileSettingsStore.get_instance(self.config, user_id)
             settings = await settings_store.load()
 
             llm_config = settings.llm_configs.get(enhance_content.model_name)
             if not llm_config:
-                raise ValueError(f"LLM config not found for model: {enhance_content.model_name}")
+                raise ValueError(
+                    f"LLM config not found for model: {enhance_content.model_name}"
+                )
             client = get_client(llm_config)
 
             # Call the enhance_prompt function
@@ -432,7 +451,7 @@ class ChatSession:
                     content={"message": f"Invalid enhance_prompt content: {str(e)}"},
                 )
             )
-            
+
     async def _handle_review_result(self, content: dict):
         """Handle reviewer's feedback."""
         try:
@@ -444,10 +463,10 @@ class ChatSession:
                     )
                 )
                 return
-           
+
             review_content = ReviewResultContent(**content)
             user_input = review_content.user_input
-            
+
             if not user_input:
                 await self.send_event(
                     RealtimeEvent(
@@ -456,7 +475,7 @@ class ChatSession:
                     )
                 )
                 return
-                
+
             await self._run_reviewer_async(user_input)
 
         except Exception as e:
@@ -512,7 +531,11 @@ class ChatSession:
             found = False
             for message in self.agent.history._message_lists[::-1]:
                 for sub_message in message:
-                    if hasattr(sub_message, 'tool_name') and sub_message.tool_name == "message_user" and isinstance(sub_message, ToolCall):
+                    if (
+                        hasattr(sub_message, "tool_name")
+                        and sub_message.tool_name == "message_user"
+                        and isinstance(sub_message, ToolCall)
+                    ):
                         found = True
                         final_result = sub_message.tool_input["text"]
                         break
@@ -525,36 +548,42 @@ class ChatSession:
             await self.send_event(
                 RealtimeEvent(
                     type=EventType.SYSTEM,
-                    content={"type": "reviewer_agent", "message": "Reviewer agent is analyzing the output..."},
+                    content={
+                        "type": "reviewer_agent",
+                        "message": "Reviewer agent is analyzing the output...",
+                    },
                 )
             )
-            
+
             # Run reviewer agent
             reviewer_feedback = await asyncio.to_thread(
                 self.reviewer_agent.run_agent,
                 task=user_input,
                 result=final_result,
-                workspace_dir=str(self.workspace_manager.root)
+                workspace_dir=str(self.workspace_manager.root),
             )
             if reviewer_feedback and reviewer_feedback.strip():
                 # Send feedback to agent for improvement
                 await self.send_event(
                     RealtimeEvent(
                         type=EventType.SYSTEM,
-                        content={"type": "reviewer_agent", "message": "Applying reviewer feedback..."},
+                        content={
+                            "type": "reviewer_agent",
+                            "message": "Applying reviewer feedback...",
+                        },
                     )
                 )
-                
+
                 feedback_prompt = f"""Based on the reviewer's analysis, here is the feedback for improvement:
 
 {reviewer_feedback}
 
 Please review this feedback and implement the suggested improvements to better complete the original task: "{user_input}"
 """
-                
+
                 # Run agent with reviewer feedback
                 await self.agent.run_agent_async(feedback_prompt, [], True)
-                
+
         except Exception as e:
             logger.error(f"Error running reviewer: {str(e)}")
             await self.send_event(
@@ -726,7 +755,7 @@ Please review this feedback and implement the suggested improvements to better c
         # Store the session ID in the agent for event tracking
         agent.session_id = session_id
         return agent
-    
+
     def _create_reviewer_agent(
         self,
         client: LLMClient,
@@ -782,5 +811,3 @@ Please review this feedback and implement the suggested improvements to better c
         )
 
         return reviewer_agent
-
-    
