@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0",
     "lint": "bunx biome lint --write && bunx tsc --noEmit",
-    "format": "bunx biome format --write"
-    "test": "jest",
+    "format": "bunx biome format --write",
+    "test": "jest""
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
