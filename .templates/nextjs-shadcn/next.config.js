@@ -32,7 +32,6 @@ const nextConfig = {
       },
     ],
   },
-  webpack: (config, {dev}) => { if (dev) { watchOptions: { poll: true } return config } return config },
   typescript: {
     ignoreBuildErrors: true,
   },
