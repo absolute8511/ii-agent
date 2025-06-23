@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useMemo } from "react";
 import { X, ChevronDown, RotateCcw, Settings2 } from "lucide-react";
 import Cookies from "js-cookie";
@@ -14,7 +16,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
-import { AVAILABLE_MODELS, ToolSettings } from "@/typings/agent";
+import { ToolSettings } from "@/typings/agent";
 import { useAppContext } from "@/context/app-context";
 import ApiKeysDialog from "./api-keys-dialog";
 
@@ -30,9 +32,10 @@ const SettingsDrawer = ({ isOpen, onClose, onOpen }: SettingsDrawerProps) => {
   const [reasoningExpanded, setReasoningExpanded] = useState(true);
   const [isApiKeysDialogOpen, setIsApiKeysDialogOpen] = useState(false);
   const [isModelConfigOpen, setIsModelConfigOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   const isClaudeModel = useMemo(
-    () => state.selectedModel?.toLowerCase().includes("claude"),
+    () => state.selectedModel?.toLowerCase().includes("claude") || false,
     [state.selectedModel]
   );
 
@@ -59,7 +62,10 @@ const SettingsDrawer = ({ isOpen, onClose, onOpen }: SettingsDrawerProps) => {
         enable_reviewer: false,
       },
     });
-    dispatch({ type: "SET_SELECTED_MODEL", payload: AVAILABLE_MODELS[0] });
+    dispatch({
+      type: "SET_SELECTED_MODEL",
+      payload: state.availableModels?.[0],
+    });
   };
 
   const handleReasoningEffortChange = (effort: string) => {
@@ -108,6 +114,12 @@ const SettingsDrawer = ({ isOpen, onClose, onOpen }: SettingsDrawerProps) => {
     }
   }, [isClaudeModel, state.toolSettings, dispatch]);
 
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) return null;
+
   return (
     <>
       {isOpen && (
@@ -154,7 +166,7 @@ const SettingsDrawer = ({ isOpen, onClose, onOpen }: SettingsDrawerProps) => {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Select
-                  value={state.selectedModel}
+                  value={state.selectedModel || ""}
                   onValueChange={(model) =>
                     dispatch({ type: "SET_SELECTED_MODEL", payload: model })
                   }
@@ -163,7 +175,7 @@ const SettingsDrawer = ({ isOpen, onClose, onOpen }: SettingsDrawerProps) => {
                     <SelectValue placeholder="Select model" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#35363a] border-[#ffffff0f]">
-                    {state.availableModels?.map((model) => (
+                    {(state.availableModels || []).map((model) => (
                       <SelectItem key={model} value={model}>
                         {model}
                       </SelectItem>
@@ -218,7 +230,7 @@ const SettingsDrawer = ({ isOpen, onClose, onOpen }: SettingsDrawerProps) => {
                       </p>
                       <Select
                         value={
-                          state.toolSettings.thinking_tokens > 0
+                          state.toolSettings?.thinking_tokens > 0
                             ? "high"
                             : "standard"
                         }

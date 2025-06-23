@@ -73,7 +73,6 @@ const ChatMessage = ({
   useEffect(() => {
     const messagesContainer = messagesEndRef.current?.parentElement;
     if (!messagesContainer) return;
-    console.log("🚀 ~ useEffect ~ messagesContainer:", messagesContainer);
 
     const handleScroll = () => {
       const isAtBottom =
