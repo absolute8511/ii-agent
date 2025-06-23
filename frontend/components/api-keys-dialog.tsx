@@ -48,6 +48,27 @@ const ApiKeysDialog = ({
   const [selectedModel, setSelectedModel] = useState<IModel>(
     PROVIDER_MODELS.anthropic[0]
   );
+  const [oldSettingData, setOldSettingData] = useState<{
+    llm_configs: LLMConfig[];
+    search_config: {
+      firecrawl_api_key: string;
+      firecrawl_base_url: string;
+      serpapi_api_key: string;
+      tavily_api_key: string;
+      jina_api_key: string;
+    };
+    media_config: {
+      gcp_project_id: string;
+      gcp_location: string;
+      gcs_output_bucket: string;
+      google_ai_studio_api_key: string;
+    };
+    audio_config: {
+      openai_api_key: string;
+      azure_endpoint: string;
+      azure_api_version: string;
+    };
+  }>();
   const [customModelName, setCustomModelName] = useState("");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingConfig, setEditingConfig] = useState<{
@@ -67,10 +88,16 @@ const ApiKeysDialog = ({
     jina_api_key: "",
   });
 
-  const [mediaConfig, setMediaConfig] = useState({
+  const [mediaConfig, setMediaConfig] = useState<{
+    gcp_project_id: string | undefined;
+    gcp_location: string | undefined;
+    gcs_output_bucket: string | undefined;
+    google_ai_studio_api_key: string | undefined;
+  }>({
     gcp_project_id: "",
     gcp_location: "",
     gcs_output_bucket: "",
+    google_ai_studio_api_key: undefined,
   });
 
   const [audioConfig, setAudioConfig] = useState({
@@ -82,6 +109,11 @@ const ApiKeysDialog = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   // const [showFirecrawlBaseUrl, setShowFirecrawlBaseUrl] = useState(false); // Add state for toggle
+
+  // Add state for media provider selection
+  const [mediaProvider, setMediaProvider] = useState<"vertex" | "gemini">(
+    mediaConfig.gcp_project_id ? "vertex" : "gemini"
+  );
 
   useEffect(() => {
     fetchSettings();
@@ -100,6 +132,7 @@ const ApiKeysDialog = ({
       }
 
       const data = await response.json();
+      setOldSettingData(data);
 
       if (isEmpty(data.llm_configs)) {
         onOpen();
@@ -153,7 +186,16 @@ const ApiKeysDialog = ({
           gcp_project_id: data.media_config.gcp_project_id || undefined,
           gcp_location: data.media_config.gcp_location || undefined,
           gcs_output_bucket: data.media_config.gcs_output_bucket || undefined,
+          google_ai_studio_api_key:
+            data.media_config.google_ai_studio_api_key || undefined,
         });
+
+        // Set the media provider based on which keys are present
+        if (data.media_config.gcp_project_id) {
+          setMediaProvider("vertex");
+        } else {
+          setMediaProvider("gemini");
+        }
       }
 
       if (data.audio_config) {
@@ -369,6 +411,29 @@ const ApiKeysDialog = ({
       },
     });
     setIsEditDialogOpen(true);
+  };
+
+  const handleMediaProviderChange = (provider: "vertex" | "gemini") => {
+    setMediaProvider(provider);
+
+    // Clear fields for the non-selected provider
+    if (provider === "gemini") {
+      setMediaConfig({
+        ...mediaConfig,
+        gcp_project_id: "",
+        gcp_location: "",
+        gcs_output_bucket: "",
+        google_ai_studio_api_key: undefined,
+      });
+    } else {
+      setMediaConfig({
+        ...mediaConfig,
+        gcp_project_id: oldSettingData?.media_config.gcp_project_id || "",
+        gcp_location: oldSettingData?.media_config.gcp_location || "",
+        gcs_output_bucket: oldSettingData?.media_config.gcs_output_bucket || "",
+        google_ai_studio_api_key: "",
+      });
+    }
   };
 
   // Function to save the edited/new config
@@ -616,57 +681,104 @@ const ApiKeysDialog = ({
                   {state.toolSettings.media_generation ? (
                     <>
                       <div className="space-y-2">
-                        <Label htmlFor="gcp-project-id">GCP Project ID</Label>
-                        <Input
-                          id="gcp-project-id"
-                          type="text"
-                          value={mediaConfig.gcp_project_id}
-                          onChange={(e) =>
-                            handleMediaConfigChange(
-                              "gcp_project_id",
-                              e.target.value
+                        <Label htmlFor="media-provider">Media Provider</Label>
+                        <Select
+                          value={mediaProvider}
+                          onValueChange={(value) =>
+                            handleMediaProviderChange(
+                              value as "vertex" | "gemini"
                             )
                           }
-                          placeholder="Enter Google Cloud Project ID"
-                          className="bg-[#35363a] border-[#ffffff0f]"
-                        />
+                        >
+                          <SelectTrigger className="bg-[#35363a] border-[#ffffff0f] w-full">
+                            <SelectValue placeholder="Select Media Provider" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#35363a] border-[#ffffff0f]">
+                            <SelectItem value="gemini">
+                              Google AI Studio
+                            </SelectItem>
+                            <SelectItem value="vertex">Vertex AI</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="gcp-location">GCP Location</Label>
-                        <Input
-                          id="gcp-location"
-                          type="text"
-                          value={mediaConfig.gcp_location}
-                          onChange={(e) =>
-                            handleMediaConfigChange(
-                              "gcp_location",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Enter Google Cloud location/region"
-                          className="bg-[#35363a] border-[#ffffff0f]"
-                        />
-                      </div>
+                      {mediaProvider === "gemini" ? (
+                        <div className="space-y-2">
+                          <Label htmlFor="google-ai-studio-key">
+                            Google AI Studio API Key
+                          </Label>
+                          <Input
+                            id="google-ai-studio-key"
+                            type="password"
+                            value={mediaConfig.google_ai_studio_api_key || ""}
+                            onChange={(e) =>
+                              handleMediaConfigChange(
+                                "google_ai_studio_api_key",
+                                e.target.value
+                              )
+                            }
+                            placeholder="Enter Google AI Studio API Key"
+                            className="bg-[#35363a] border-[#ffffff0f]"
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="space-y-2">
+                            <Label htmlFor="gcp-project-id">
+                              GCP Project ID
+                            </Label>
+                            <Input
+                              id="gcp-project-id"
+                              type="text"
+                              value={mediaConfig.gcp_project_id || ""}
+                              onChange={(e) =>
+                                handleMediaConfigChange(
+                                  "gcp_project_id",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Enter Google Cloud Project ID"
+                              className="bg-[#35363a] border-[#ffffff0f]"
+                            />
+                          </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="gcs-output-bucket">
-                          GCS Output Bucket
-                        </Label>
-                        <Input
-                          id="gcs-output-bucket"
-                          type="text"
-                          value={mediaConfig.gcs_output_bucket}
-                          onChange={(e) =>
-                            handleMediaConfigChange(
-                              "gcs_output_bucket",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Enter GCS bucket URI (e.g., gs://my-bucket-name)"
-                          className="bg-[#35363a] border-[#ffffff0f]"
-                        />
-                      </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="gcp-location">GCP Location</Label>
+                            <Input
+                              id="gcp-location"
+                              type="text"
+                              value={mediaConfig.gcp_location || ""}
+                              onChange={(e) =>
+                                handleMediaConfigChange(
+                                  "gcp_location",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Enter Google Cloud location/region"
+                              className="bg-[#35363a] border-[#ffffff0f]"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="gcs-output-bucket">
+                              GCS Output Bucket
+                            </Label>
+                            <Input
+                              id="gcs-output-bucket"
+                              type="text"
+                              value={mediaConfig.gcs_output_bucket || ""}
+                              onChange={(e) =>
+                                handleMediaConfigChange(
+                                  "gcs_output_bucket",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Enter GCS bucket URI (e.g., gs://my-bucket-name)"
+                              className="bg-[#35363a] border-[#ffffff0f]"
+                            />
+                          </div>
+                        </>
+                      )}
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
