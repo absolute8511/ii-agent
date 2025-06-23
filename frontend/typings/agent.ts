@@ -78,6 +78,8 @@ export enum TOOL {
   DISPLAY_IMAGE = "display_image",
   REVIEWER_AGENT = "reviewer_agent",
 
+  GET_DATABASE_CONNECTION = "get_database_connection",
+  GET_OPENAI_KEY = "get_openai_api_key",
   // browser tools
   BROWSER_VIEW = "browser_view",
   BROWSER_NAVIGATION = "browser_navigation",

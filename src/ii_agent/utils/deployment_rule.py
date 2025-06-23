@@ -32,8 +32,11 @@ IMPORTANT NOTE: This project is built with TypeScript(tsx) and Next.js App Route
 Add components with `cd {project_name} && pnpx shadcn@latest add -y -o`. Import components with `@/` alias. Note, 'toast' is deprecated, use 'sonner' instead. Before editing, run `cd {project_name} && pnpm install` to install dependencies. Run `cd {project_name} && pnpm run dev` to start the dev server ASAP to catch any runtime errors. Remember that all terminal commands must be run from the project directory.
 Any database operations should be done with Prisma ORM.
 Authentication is done with NextAuth.
-Chart.js is used for charts.
+Use Chart.js for charts. Moveable for Draggable, Resizable, Scalable, Rotatable, Warpable, Pinchable, Groupable, Snappable components.
+Use AOS for scroll animations.
 Advance animations are done with Framer Motion, Anime.js, and React Three Fiber.
+Before you begin writing the service, you must write test for all the expected http requests and responses using supertest (already installed).
+Run the test by running `pnpm test`. Any backend operations should pass all test begin you begin your deployment
 """
 
 
@@ -70,6 +73,8 @@ Project directory `{project_name}` created successfully. Application code is in 
 IMPORTANT NOTE: This project is built with TypeScript(tsx) and Vite + React.
 
 Add components with `cd {project_name} && pnpx shadcn@latest add -y -o`. Import components with `@/` alias. Note, 'toast' is deprecated, use 'sonner' instead. Before editing, run `cd {project_name} && pnpm install` to install dependencies. Run `cd {project_name} && pnpm run dev` to start the dev server ASAP to catch any runtime errors. Remember that all terminal commands must be run from the project directory. 
-Use Chart.js for charts.
+Use Chart.js for charts. Moveable for Draggable, Resizable, Scalable, Rotatable, Warpable, Pinchable, Groupable, Snappable components.
+Use AOS for scroll animations.
 Use and install Framer Motion, Anime.js, and React Three Fiber for advance animations.
+If you are unsure how to use a library, use search tool to find the documentation.
 """

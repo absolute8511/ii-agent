@@ -25,6 +25,8 @@ import {
   Eye,
   X,
   SquareChevronRight,
+  Database,
+  Key,
 } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -52,6 +54,10 @@ const Action = ({ workspaceInfo, type, value, onClick }: ActionProps) => {
         return <Lightbulb className={className} />;
       case TOOL.WEB_SEARCH:
         return <Search className={className} />;
+      case TOOL.GET_DATABASE_CONNECTION:
+        return <Database className={className} />;
+      case TOOL.GET_OPENAI_KEY:
+        return <Key className={className} />;
       case TOOL.IMAGE_SEARCH:
         return <ImageIcon className={className} />;
       case TOOL.VISIT:
