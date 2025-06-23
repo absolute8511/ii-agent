@@ -143,6 +143,9 @@ def get_system_tools(
                     ])
                 if settings.media_config.google_ai_studio_api_key:
                     tools.append(SingleSpeakerSpeechGenerationTool(workspace_manager=workspace_manager, settings=settings))
+            else:
+                logger.warning("Media generation tools not added due to missing configuration")
+                raise Exception("Media generation tools not added due to missing configuration")
         if tool_args.get("audio_generation", False):
             # Check if audio config is available in settings
             has_audio_config = False
