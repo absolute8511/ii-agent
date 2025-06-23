@@ -5,6 +5,7 @@ Project directory `{project_name}` created successfully. Application code is in 
 {project_name}/
 │   ├── .gitignore              # Git ignore file
 │   ├── biome.json              # Biome linter/formatter configuration
+│   ├── jest.config.js          # Jest configuration
 │   ├── pnpm.lock               # Lock file for dependencies
 │   ├── components.json         # shadcn/ui configuration
 │   ├── eslint.config.mjs       # ESLint configuration
@@ -14,6 +15,7 @@ Project directory `{project_name}` created successfully. Application code is in 
 │   ├── package.json            # Project dependencies and scripts
 │   ├── postcss.config.mjs      # PostCSS configuration
 │   ├── README.md               # Project documentation
+│   ├── __tests__/              # Jest test directory
 │   ├── src/                    # Source code directory
 │   │   ├── app/                # Next.js App Router directory
 │   │   │   ├── ClientBody.tsx  # Client-side body component
