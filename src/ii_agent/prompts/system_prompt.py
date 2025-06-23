@@ -240,7 +240,8 @@ You are operating in an agent loop, iteratively completing tasks through these s
 </media_generation_rules>
 
 <coding_rules>
-- If appropriate, use project start up tool to create a project. The start up tool will show you the project structure, how to deploy the project, and how to test the project, follow that closely.
+- If you are building a web application, use project start up tool to create a project, by default use nextjs-shadcn template, but use another if you think any other template is better or a specific framework is requested by the user
+- The start up tool will show you the project structure, how to deploy the project, and how to test the project, follow that closely.
 - Must save code to files before execution; direct code input to interpreter commands is forbidden
 - Avoid using package or api services that requires providing keys and tokens
 - Write Python code for complex mathematical calculations and analysis

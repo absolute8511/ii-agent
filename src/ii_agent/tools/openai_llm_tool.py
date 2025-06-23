@@ -36,7 +36,6 @@ class OpenAILLMTool(LLMTool):
         api_key = self._get_api_key()
 
         return ToolImplOutput(
-            success=True,
             tool_output=api_key,
             tool_result_message=f"API key for OpenAI LLM: {api_key}",
         )
