@@ -32,14 +32,15 @@ const nextConfig = {
       },
     ],
   },
+  webpack: (config, {dev}) => { if (dev) { watchOptions: { poll: true } return config } return config },
   typescript: {
     ignoreBuildErrors: true,
-},
-eslint: {
-  ignoreDuringBuilds: true,
   },
-  watchOptions: {
-    ignored: ['**/node_modules/**', '**/.git/**'],
+  eslint: {
+    ignoreDuringBuilds: true,
+    },
+    watchOptions: {
+      ignored: ['**/node_modules/**', '**/.git/**'],
   },
 };
 
