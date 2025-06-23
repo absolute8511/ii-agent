@@ -37,6 +37,9 @@ const nextConfig = {
 eslint: {
   ignoreDuringBuilds: true,
   },
+  watchOptions: {
+    ignored: ['**/node_modules/**', '**/.git/**'],
+  },
 };
 
 module.exports = nextConfig;
