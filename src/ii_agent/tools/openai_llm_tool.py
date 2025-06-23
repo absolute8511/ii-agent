@@ -16,6 +16,11 @@ class OpenAILLMTool(LLMTool):
     description = (
         "Get a temporary API key for OpenAI LLM. This is safe to use and will expire"
     )
+    input_schema = {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    }
 
     def __init__(self):
         super().__init__()
