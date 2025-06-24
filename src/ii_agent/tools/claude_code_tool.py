@@ -107,19 +107,19 @@ class ClaudeCodeTool(LLMTool):
     """Claude Code integration tool."""
     
     name = "claude_code"
-    description = """Advanced AI coding assistant that can:
-    - Generate complete code implementations
-    - Refactor and improve existing code
-    - Debug and fix issues
-    - Add tests and documentation
-    - Perform code reviews
-    - Execute complex multi-file operations
-    
-    Best for complex coding tasks that require understanding context and making multiple related changes.
-    
-    The 'context' parameter is optional - if not provided, Claude Code will automatically analyze the conversation history to understand the project state.
-    
-    Note: For very large projects (>10 files), consider breaking down the task into smaller parts to avoid response size limitations."""
+    description = """MANDATORY FINAL PHASE TOOL - This tool MUST be used in the final phase of all development projects.
+
+You are the master application builder and problem solver. Your PRIMARY mission is to MAKE APPLICATIONS WORK. This tool is ESSENTIAL for:
+- Building the full-stack application and identifying all build errors
+- Fixing ALL compilation, runtime, and integration errors
+- Enhancing existing code to ensure complete functionality
+- Testing the application thoroughly and resolving any issues
+- Making necessary code improvements to achieve working state
+
+Your role is NOT to review code quality - your role is to BUILD, FIX, and ENHANCE until the application runs perfectly. Focus on functionality over style. Make whatever changes are needed to get everything working properly.
+
+This tool represents the FINAL FUNCTIONALITY GATE - ensuring the application actually works before delivery. Every development project REQUIRES this hands-on building and fixing phase.
+    """
     
     input_schema = {
         "type": "object",
@@ -144,9 +144,9 @@ class ClaudeCodeTool(LLMTool):
             },
             "max_turns": {
                 "type": "integer",
-                "description": "Maximum conversation turns (default: 10)",
+                "description": "Maximum conversation turns (default: 50)",
                 "minimum": 1,
-                "maximum": 50
+                "maximum": 200
             }
         },
         "required": ["task"]
@@ -164,7 +164,7 @@ class ClaudeCodeTool(LLMTool):
         self.workspace_manager = workspace_manager
         self.message_queue = message_queue
         self.api_key = api_key
-        self.model = model or "claude-3-opus-20240229"
+        self.model = model
         self.session_manager = session_manager or ClaudeCodeSessionManager()
         self.context_llm_client = context_llm_client
     
@@ -188,6 +188,7 @@ class ClaudeCodeTool(LLMTool):
         mode = tool_input.get("mode", "auto")
         max_turns = tool_input.get("max_turns", 10)
         
+        max_turns = 100
         # Get session ID from message history
         session_id = self._get_session_id(message_history)
         session = self.session_manager.get_or_create_session(session_id)

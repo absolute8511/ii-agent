@@ -10,7 +10,6 @@ import os
 import argparse
 import logging
 import asyncio
-import uuid
 from dotenv import load_dotenv
 
 from ii_agent.llm.message_history import MessageHistory
@@ -92,13 +91,11 @@ async def async_main():
     console = Console()
 
     # Create a new workspace manager for the CLI session
-    workspace_manager = create_workspace_manager_for_connection(args)
+    workspace_manager, session_id = create_workspace_manager_for_connection(
+        args.workspace, args.use_container_workspace
+    )
     workspace_path = workspace_manager.root
     
-    # Generate a unique session ID
-    session_id = str(uuid.uuid4())
-    
-    import ipdb; ipdb.set_trace()
     # Create a new session and get its workspace directory
     Sessions.create_session(
         session_uuid=session_id, workspace_path=workspace_manager.root
@@ -144,10 +141,7 @@ async def async_main():
 
     client = get_client(args.llm_client, **client_kwargs)
 
-    # Initialize workspace manager with the session-specific workspace
-    workspace_manager = WorkspaceManager(
-        root=workspace_path, container_workspace=args.use_container_workspace
-    )
+    # Workspace manager already initialized earlier in the function
 
     # Initialize token counter
     token_counter = TokenCounter()
@@ -183,8 +177,6 @@ async def async_main():
         client=client,
         workspace_manager=workspace_manager,
         message_queue=queue,
-        container_id=args.docker_container_id,
-        ask_user_permission=args.needs_permission,
         tool_args=tool_args,
     )
     
@@ -205,11 +197,12 @@ good at:
 - Code reviews and improvements
 
 When calling claude_code, you can optionally provide a 'context' parameter to give specific background.
+You should also provide the current workspace folder path in your instruction to claude_code to make it easier to find the files, and also ask claude_code to use workspace folder.
 If you don't provide context, Claude Code will automatically generate it from the conversation history.
 
 Example with explicit context:
 claude_code(
-    task="Add authentication to the server",
+    task="Add authentication to the server. Let's use the /path/to/workspace/ directory for your work.",
     context="Previously created a FastAPI server in main.py with basic routes. The server has endpoints for /users and /items.",
     context_files=["main.py"]
 )
@@ -220,8 +213,11 @@ claude_code(
     context_files=["main.py"]
 )"""
     
+    # system_prompt = get_system_prompt(WorkSpaceMode.LOCAL) + claude_code_prompt
+    system_prompt = get_system_prompt(WorkSpaceMode.LOCAL)
+    
     agent = FunctionCallAgent(
-        system_prompt=get_system_prompt(WorkSpaceMode.LOCAL) + claude_code_prompt,
+        system_prompt=system_prompt,
         client=client,
         workspace_manager=workspace_manager,
         tools=tools,
@@ -237,7 +233,42 @@ claude_code(
     message_task = agent.start_message_processing()
 
     loop = asyncio.get_running_loop()
-    
+    prompt = """
+Build a simplified node-based image generation web application inspired by ComfyUI, focused on multimodal workflows using text and image nodes.
+
+## Core Features
+
+### Node Types
+There are only two node types:
+- **Text Node**: Contains a text input box.
+- **Image Node**: Accepts uploaded images or generated ones.
+
+### Supported Workflows
+Design the system to support the following graph-based multimodal workflows:
+- **text(s) → text**: Connect multiple text nodes into one text node, then output using a summarization or ideation prompt.
+- **text → image**: Connect a text node to an image node, then generate an image from a text prompt.
+- **text + image → image**: Connect a text node and an image node into an image node, then edit an image using a text instruction (e.g., "make it look like night").
+- **text + image → text**: Connect a text node and an image node into a text node, ask questions about an image ("what's in the picture?").
+- **image → text**: Connect an image node to a text node, then describe or caption an image.
+Prevent invalid connections
+
+## Backend Execution
+
+Use **FastAPI** for the backend.
+
+### Endpoint
+- `/run-graph`: Accept a JSON graph definition (nodes + edges), return outputs (final node)
+
+### Services Used
+- Use [https://fal.ai](https://fal.ai) for:
+  - `text → image`
+  - `text + image → image`
+- Use **OpenAI** API (GPT-4V or GPT-4) for:
+  - `text → text` (combine prompts)
+  - `image → text` (caption or QA)
+  - `text + image → text` (QA with image)
+Has a page for configuration API keys    
+"""
     # Example prompts for Claude Code
     if not args.minimize_stdout_logs and not args.no_claude_code:
         console.print("\n[bold cyan]Example Claude Code commands:[/bold cyan]")
@@ -251,14 +282,14 @@ claude_code(
     try:
         while True:
             # Use async input
-            if args.prompt is None:
+            if prompt is None:
                 user_input = await loop.run_in_executor(
                     None, lambda: input("User input: ")
                 )
             else:
-                user_input = args.prompt
+                user_input = prompt
                 # Only use prompt once
-                args.prompt = None
+                prompt = None
 
             agent.message_queue.put_nowait(
                 RealtimeEvent(type=EventType.USER_MESSAGE, content={"text": user_input})

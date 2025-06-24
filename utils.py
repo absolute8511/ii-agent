@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+import uuid
 from ii_agent.utils.constants import DEFAULT_MODEL
 from ii_agent.utils.workspace_manager import WorkSpaceMode
 from ii_agent.utils import WorkspaceManager
@@ -97,9 +98,11 @@ def parse_common_args(parser: ArgumentParser):
     return parser
 
 
-def create_workspace_manager_for_connection(args):
-    """Create a WorkspaceManager instance based on command line arguments."""
-    return WorkspaceManager(
-        parent_dir=args.workspace,
-        session_id="default_session"
+def create_workspace_manager_for_connection(workspace_path, use_container_workspace):
+    """Create a WorkspaceManager instance and generate a session ID."""
+    session_id = str(uuid.uuid4())
+    workspace_manager = WorkspaceManager(
+        parent_dir=workspace_path,
+        session_id=session_id
     )
+    return workspace_manager, session_id
