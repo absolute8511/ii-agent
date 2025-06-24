@@ -72,7 +72,7 @@ from ii_agent.tools.deep_research_tool import DeepResearchTool
 from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
 from ii_agent.utils.constants import TOKEN_BUDGET
 from ii_agent.utils.workspace_manager import WorkSpaceMode
-
+from ii_agent.tools.web_dev_tool import FullStackInitTool
 
 def get_system_tools(
     client: LLMClient,
@@ -162,10 +162,11 @@ def get_system_tools(
                 workspace_manager=workspace_manager,
                 str_replace_client=str_replace_client,
             ),
-            ProjectStartUpTool(
-                workspace_manager=workspace_manager, terminal_client=terminal_client
-            ),
+            # ProjectStartUpTool(
+            #     workspace_manager=workspace_manager, terminal_client=terminal_client
+            # ),
             DisplayImageTool(workspace_manager=workspace_manager),
+            FullStackInitTool(workspace_manager=workspace_manager, terminal_client=terminal_client),
         ]
     )
 

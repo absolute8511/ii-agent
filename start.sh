@@ -16,7 +16,7 @@ if [ ! -d "${PWD}/workspace" ]; then
 fi
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  # macOS
+# macOS
   export HOST_IP=$(ipconfig getifaddr en0)
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
   # Linux
@@ -26,13 +26,15 @@ else
   export HOST_IP="localhost"
 fi
 
+export HOST_IP=34.143.207.91
+
 #DEPLOYMENT DOMAIN, CHANGE THIS IF YOU SET UP YOUR OWN DOMAIN AND REVERSE PROXY
 echo "Using HOST_IP: $HOST_IP"
 
 #BACKEND ENVIRONMENT VARIABLES
-export FRONTEND_PORT=3000
-export BACKEND_PORT=8000
-export NGINX_PORT=8080
+export FRONTEND_PORT=4000
+export BACKEND_PORT=5000
+export NGINX_PORT=10000
 
 export WORKSPACE_PATH=${PWD}/workspace
 export PUBLIC_DOMAIN=${HOST_IP}.nip.io
