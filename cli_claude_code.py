@@ -10,6 +10,7 @@ import os
 import argparse
 import logging
 import asyncio
+import uuid
 from dotenv import load_dotenv
 
 from ii_agent.llm.message_history import MessageHistory
@@ -23,7 +24,8 @@ from rich.console import Console
 from rich.panel import Panel
 
 from ii_agent.tools import get_system_tools
-from ii_agent.prompts.system_prompt import SYSTEM_PROMPT
+from ii_agent.prompts.system_prompt import get_system_prompt
+from utils import WorkSpaceMode
 from ii_agent.agents.function_call import FunctionCallAgent
 from ii_agent.utils import WorkspaceManager
 from ii_agent.llm import get_client
@@ -90,11 +92,13 @@ async def async_main():
     console = Console()
 
     # Create a new workspace manager for the CLI session
-    workspace_manager, session_id = create_workspace_manager_for_connection(
-        args.workspace, args.use_container_workspace
-    )
+    workspace_manager = create_workspace_manager_for_connection(args)
     workspace_path = workspace_manager.root
-
+    
+    # Generate a unique session ID
+    session_id = str(uuid.uuid4())
+    
+    import ipdb; ipdb.set_trace()
     # Create a new session and get its workspace directory
     Sessions.create_session(
         session_uuid=session_id, workspace_path=workspace_manager.root
@@ -217,7 +221,7 @@ claude_code(
 )"""
     
     agent = FunctionCallAgent(
-        system_prompt=SYSTEM_PROMPT + claude_code_prompt,
+        system_prompt=get_system_prompt(WorkSpaceMode.LOCAL) + claude_code_prompt,
         client=client,
         workspace_manager=workspace_manager,
         tools=tools,

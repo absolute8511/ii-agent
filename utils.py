@@ -1,13 +1,14 @@
 from argparse import ArgumentParser
 from ii_agent.utils.constants import DEFAULT_MODEL
 from ii_agent.utils.workspace_manager import WorkSpaceMode
+from ii_agent.utils import WorkspaceManager
 
 
 def parse_common_args(parser: ArgumentParser):
     parser.add_argument(
         "--workspace",
         type=str,
-        default="./workspace",
+        default="test_workspace/",
         help="Path to the workspace",
     )
     parser.add_argument(
@@ -94,3 +95,11 @@ def parse_common_args(parser: ArgumentParser):
         help="Enable reviewer agent to analyze and improve outputs",
     )
     return parser
+
+
+def create_workspace_manager_for_connection(args):
+    """Create a WorkspaceManager instance based on command line arguments."""
+    return WorkspaceManager(
+        parent_dir=args.workspace,
+        session_id="default_session"
+    )
