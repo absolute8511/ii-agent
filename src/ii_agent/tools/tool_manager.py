@@ -238,6 +238,16 @@ def get_system_tools(
             pass
         elif memory_tool == "simple":
             tools.append(SimpleMemoryTool())
+            
+        # Claude Code tool
+        if tool_args.get("claude_code", False):
+            from ii_agent.tools.claude_code_tool import ClaudeCodeTool
+            tools.append(ClaudeCodeTool(
+                    workspace_manager=workspace_manager,
+                    message_queue=message_queue,
+                    model=tool_args.get("claude_code_model"),
+                    context_llm_client=client  # Pass the LLM client for context generation
+                ))
 
     return tools
 
