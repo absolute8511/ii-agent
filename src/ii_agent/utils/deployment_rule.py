@@ -40,6 +40,8 @@ Advance animations are done with Framer Motion, Anime.js, and React Three Fiber.
 Before writing the frontend integration, you must write an openapi spec for the backend then you must write test for all the expected http requests and responses using supertest (already installed).
 Run the test by running `pnpm test`. Any backend operations should pass all test begin you begin your deployment
 The integration must follow the api contract strictly. Your predecessor was killed because he did not follow the api contract.
+
+If you need to use websocket, follow this guide: https://socket.io/how-to/use-with-nextjs
 Banned libraries (will break with this template): Quill
 """
 
