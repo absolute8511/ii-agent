@@ -14,7 +14,6 @@ from ii_agent.tools.image_search_tool import ImageSearchTool
 from ii_agent.tools.base import LLMTool
 from ii_agent.llm.message_history import ToolCallParameters
 from ii_agent.tools.clients.config import RemoteClientConfig
-from ii_agent.tools.project_start_up_tool import ProjectStartUpTool
 from ii_agent.tools.register_deployment import RegisterDeploymentTool
 from ii_agent.tools.shell_tools import (
     ShellExecTool,
@@ -35,8 +34,12 @@ from ii_agent.tools.str_replace_tool_relative import (
 )
 from ii_agent.tools.sequential_thinking_tool import SequentialThinkingTool
 from ii_agent.tools.message_tool import MessageTool
-from ii_agent.tools.complete_tool import CompleteTool, ReturnControlToUserTool, CompleteToolReviewer, ReturnControlToGeneralAgentTool
-from ii_agent.tools.bash_tool import create_bash_tool, create_docker_bash_tool
+from ii_agent.tools.complete_tool import (
+    CompleteTool,
+    ReturnControlToUserTool,
+    CompleteToolReviewer,
+    ReturnControlToGeneralAgentTool,
+)
 from ii_agent.browser.browser import Browser
 from ii_agent.utils import WorkspaceManager
 from ii_agent.llm.message_history import MessageHistory
@@ -73,6 +76,7 @@ from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
 from ii_agent.utils.constants import TOKEN_BUDGET
 from ii_agent.utils.workspace_manager import WorkSpaceMode
 from ii_agent.tools.web_dev_tool import FullStackInitTool
+
 
 def get_system_tools(
     client: LLMClient,
@@ -148,7 +152,9 @@ def get_system_tools(
             MessageTool(),
             WebSearchTool(),
             VisitWebpageTool(),
-            ShellExecTool(terminal_client=terminal_client),
+            ShellExecTool(
+                terminal_client=terminal_client, workspace_manager=workspace_manager
+            ),
             ShellViewTool(terminal_client=terminal_client),
             ShellWaitTool(terminal_client=terminal_client),
             ShellWriteToProcessTool(terminal_client=terminal_client),
@@ -166,7 +172,9 @@ def get_system_tools(
             #     workspace_manager=workspace_manager, terminal_client=terminal_client
             # ),
             DisplayImageTool(workspace_manager=workspace_manager),
-            FullStackInitTool(workspace_manager=workspace_manager, terminal_client=terminal_client),
+            FullStackInitTool(
+                workspace_manager=workspace_manager, terminal_client=terminal_client
+            ),
         ]
     )
 
@@ -256,12 +264,24 @@ class AgentToolManager:
     search capabilities, and task completion functionality.
     """
 
-    def __init__(self, tools: List[LLMTool], logger_for_agent_logs: logging.Logger, interactive_mode: bool = True, reviewer_mode: bool = False):
+    def __init__(
+        self,
+        tools: List[LLMTool],
+        logger_for_agent_logs: logging.Logger,
+        interactive_mode: bool = True,
+        reviewer_mode: bool = False,
+    ):
         self.logger_for_agent_logs = logger_for_agent_logs
         if reviewer_mode:
-            self.complete_tool = ReturnControlToGeneralAgentTool() if interactive_mode else CompleteToolReviewer()
+            self.complete_tool = (
+                ReturnControlToGeneralAgentTool()
+                if interactive_mode
+                else CompleteToolReviewer()
+            )
         else:
-            self.complete_tool = ReturnControlToUserTool() if interactive_mode else CompleteTool()
+            self.complete_tool = (
+                ReturnControlToUserTool() if interactive_mode else CompleteTool()
+            )
         self.tools = tools
 
     def get_tool(self, tool_name: str) -> LLMTool:

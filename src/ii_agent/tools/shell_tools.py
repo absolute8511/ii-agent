@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Optional
 from ii_agent.tools.base import (
     ToolImplOutput,
@@ -5,6 +6,7 @@ from ii_agent.tools.base import (
 )
 from ii_agent.llm.message_history import MessageHistory
 from ii_agent.tools.clients.terminal_client import TerminalClient
+from ii_agent.utils.workspace_manager import WorkspaceManager
 
 
 class ShellExecTool(LLMTool):
@@ -32,9 +34,14 @@ class ShellExecTool(LLMTool):
         "required": ["session_id", "command", "exec_dir"],
     }
 
-    def __init__(self, terminal_client: TerminalClient):
+    def __init__(
+        self,
+        terminal_client: TerminalClient,
+        workspace_manager: WorkspaceManager,
+    ):
         super().__init__()
         self.terminal_client = terminal_client
+        self.workspace_manager = workspace_manager
 
     async def run_impl(
         self,
@@ -45,8 +52,10 @@ class ShellExecTool(LLMTool):
         command = tool_input["command"]
         exec_dir = tool_input["exec_dir"]
 
+        workspace_exec_dir = self.workspace_manager.container_path(Path(exec_dir))
+
         result = self.terminal_client.shell_exec(
-            session_id, command, exec_dir, timeout=30
+            session_id, command, workspace_exec_dir, timeout=30
         )
         if result.success:
             return ToolImplOutput(
