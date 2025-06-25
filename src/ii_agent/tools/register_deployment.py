@@ -62,6 +62,6 @@ class RegisterDeploymentTool(LLMTool):
             public_url = self._register_docker_port(tool_input["port"])
 
         return ToolImplOutput(
-            public_url,
+            f"Registering successfully. Public url/base path to access the service: {public_url}. Update all localhost or 127.0.0.1 to the public url in your code. If you are using Next Auth, update your NEXTAUTH_URL",
             f"Registering successfully. Public url/base path to access the service: {public_url}. Update all localhost or 127.0.0.1 to the public url in your code. If you are using Next Auth, update your NEXTAUTH_URL",
         )

@@ -257,7 +257,8 @@ You are operating in an agent loop, iteratively completing tasks through these s
   - This contract is the source of truth for both the MSW mocks and the future FastAPI implementation
   - Frontend should rely on the API contract to make requests to the backend.
 - Third-party Services Integration
-  - Search and review official documentation for the service
+  - If you are required to use api or 3rd party service, you must use the search tool to find the documentation and use the library and api
+  - Search and review official documentation for the service and API that are mentioned in the description
   - Do not assume anything because your knowledge may be outdated; verify every endpoint and parameter
 IMPORTANT:
 - Never use localhost or 127.0.0.1 in your code, use the public ip address of the server instead. 

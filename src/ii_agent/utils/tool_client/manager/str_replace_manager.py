@@ -529,6 +529,7 @@ class StrReplaceManager:
     def _write_file(self, path: Path, file: str, display_path: str):
         """Write the content of a file to a given path; raise a StrReplaceToolError if an error occurs."""
         try:
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(file)
         except Exception as e:
             raise StrReplaceToolError(
