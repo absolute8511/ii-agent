@@ -240,7 +240,7 @@ This tool's mission is to MAKE APPLICATIONS WORK, not review code quality. It wi
         workspace_path = tool_input.get("workspace_path", "")
         provided_context = tool_input.get("context", "")
         context_files = tool_input.get("context_files", [])
-        max_turns = tool_input.get("max_turns", 100)
+        max_turns = tool_input.get("max_turns", 200)
         
         # Get session ID from message history
         session_id = self._get_session_id(message_history)

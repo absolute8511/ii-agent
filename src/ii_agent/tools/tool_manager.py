@@ -73,6 +73,7 @@ from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
 from ii_agent.utils.constants import TOKEN_BUDGET
 from ii_agent.utils.workspace_manager import WorkSpaceMode
 from ii_agent.tools.web_dev_tool import FullStackInitTool
+from pathlib import Path
 
 def get_system_tools(
     client: LLMClient,
@@ -248,8 +249,85 @@ def get_system_tools(
                     model=tool_args.get("claude_code_model"),
                     context_llm_client=client  # Pass the LLM client for context generation
                 ))
+        
+        # MCP tools
+        if tool_args.get("mcp", False):
+            try:
+                import asyncio
+                
+                # Check if we're already in an event loop
+                try:
+                    loop = asyncio.get_running_loop()
+                    # We're in an event loop, create a task
+                    logger.warning("MCP tools loading skipped - already in event loop. Use async initialization.")
+                    tools.append(_create_mcp_status_tool("MCP loading requires async initialization - use MCPRegistry.initialize() directly"))
+                except RuntimeError:
+                    # No running event loop, safe to use asyncio.run()
+                    mcp_tools = asyncio.run(_get_mcp_tools(workspace_manager, tool_args))
+                    tools.extend(mcp_tools)
+                    
+            except Exception as e:
+                logger.error(f"Error loading MCP tools: {str(e)}")
+                # Add a placeholder MCP status tool instead
+                tools.append(_create_mcp_status_tool(str(e)))
 
     return tools
+
+
+async def _get_mcp_tools(workspace_manager: WorkspaceManager, tool_args: Dict[str, Any]) -> List[LLMTool]:
+    """Get MCP tools from configured servers.
+    
+    Args:
+        workspace_manager: Workspace manager for file operations
+        tool_args: Tool configuration arguments
+        
+    Returns:
+        List of MCP tools
+    """
+    try:
+        from ii_agent.tools.mcp import MCPRegistry
+        
+        # Initialize MCP registry with workspace root
+        workspace_root = Path(workspace_manager.root) if workspace_manager.root else Path.cwd()
+        mcp_registry = MCPRegistry(workspace_root=workspace_root)
+        
+        # Initialize and get MCP tools
+        if await mcp_registry.initialize(tool_args):
+            mcp_tools = await mcp_registry.get_mcp_tools()
+            logger.info(f"Loaded {len(mcp_tools)} MCP tools")
+            return mcp_tools
+        else:
+            logger.warning("Failed to initialize MCP registry")
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error loading MCP tools: {str(e)}")
+        return []
+
+
+def _create_mcp_status_tool(error_message: str) -> LLMTool:
+    """Create a status tool that reports MCP loading issues.
+    
+    Args:
+        error_message: Error message to report
+        
+    Returns:
+        Status tool instance
+    """
+    from ii_agent.tools.message_tool import MessageTool
+    from ii_agent.tools.base import ToolImplOutput
+    
+    class MCPStatusTool(MessageTool):
+        name = "mcp_status"
+        description = f"MCP tools failed to load: {error_message[:100]}..."
+        
+        async def run_impl(self, tool_input, message_history=None):
+            return ToolImplOutput(
+                tool_output=f"MCP tools are not available. Error: {error_message}",
+                tool_result_message="MCP status reported"
+            )
+    
+    return MCPStatusTool()
 
 
 class AgentToolManager:
