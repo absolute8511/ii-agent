@@ -42,6 +42,8 @@ Run the test by running `pnpm test`. Any backend operations should pass all test
 The integration must follow the api contract strictly. Your predecessor was killed because he did not follow the api contract.
 
 If you need to use websocket, follow this guide: https://socket.io/how-to/use-with-nextjs
+You must use socket.io and (IMPORTANT) socket.io-client for websocket.
+
 Banned libraries (will break with this template): Quill
 """
 
