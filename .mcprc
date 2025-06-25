@@ -1,0 +1,22 @@
+{
+  "context7": {
+    "command": "/home/pvduy/.nvm/versions/node/v20.12.2/bin/npx",
+    "args": ["-y", "@upstash/context7-mcp@latest"],
+    "env": {
+      "PATH": "/home/pvduy/.nvm/versions/node/v20.12.2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/pvduy/.local/bin",
+      "NODE_ENV": "production"
+    },
+    "description": "Context7 MCP server - Real-time documentation and code examples for libraries",
+    "transport": "stdio"
+  },
+  "pubmed-mcp-server": {
+    "command": "/home/pvduy/.nvm/versions/node/v20.12.2/bin/npx",
+    "args": ["-y", "@smithery/cli@latest", "run", "@JackKuo666/pubmed-mcp-server", "--key", "20b95e06-0576-42fa-926c-4969cc66bf02"],
+    "env": {
+      "PATH": "/home/pvduy/.nvm/versions/node/v20.12.2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/pvduy/.local/bin",
+      "NODE_ENV": "production"
+    },
+    "description": "PubMed MCP server - Enable AI assistants to search, access, and analyze PubMed articles with PDF downloads",
+    "transport": "stdio"
+  }
+}

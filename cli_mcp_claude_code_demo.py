@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-CLI interface for demonstrating MCP (Context7) + Claude Code integration with ii-agent.
+CLI interface for demonstrating MCP (Context7 + PubMed) + Claude Code integration with ii-agent.
 
 This script provides a command-line interface specifically configured
-for testing the combined power of Context7 MCP (real-time docs) and Claude Code tools.
+for testing the combined power of Context7 MCP (real-time docs), PubMed MCP (medical literature), and Claude Code tools.
 
 Example use cases:
 - "Use Context7 to get the latest React hooks documentation, then use Claude Code to build a modern React component"
 - "Get FastAPI documentation via Context7 and create a REST API with Claude Code"
 - "Use Context7 to research pandas DataFrame operations and build a data analysis script with Claude Code"
+- "Search PubMed for recent COVID-19 treatments and create a research analysis with Claude Code"
+- "Find machine learning papers in healthcare via PubMed and build a citation analysis tool with Claude Code"
 """
 
 import os
@@ -93,7 +95,9 @@ def show_demo_examples(console: Console):
         ("TypeScript Project", "Get TypeScript 5.x documentation via Context7 and refactor a JavaScript project to TypeScript using Claude Code"),
         ("Database Integration", "Research SQLAlchemy ORM patterns with Context7 and implement a database layer using Claude Code"),
         ("Testing Framework", "Get pytest documentation from Context7 and create comprehensive tests for existing code using Claude Code"),
-        ("Deployment Setup", "Research Docker best practices with Context7 and containerize an application using Claude Code")
+        ("Deployment Setup", "Research Docker best practices with Context7 and containerize an application using Claude Code"),
+        ("Medical Research", "Use PubMed MCP to search for recent COVID-19 treatment studies, download PDFs, and create a research summary with Claude Code"),
+        ("Literature Analysis", "Search PubMed for machine learning applications in healthcare, analyze metadata, and build a citation analysis tool with Claude Code")
     ]
     
     for category, prompt in examples:
@@ -106,7 +110,7 @@ async def async_main():
     """Async main entry point"""
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
-        description="CLI for demonstrating MCP (Context7) + Claude Code integration with ii-agent"
+        description="CLI for demonstrating MCP (Context7 + PubMed) + Claude Code integration with ii-agent"
     )
     parser = parse_common_args(parser)
     
@@ -286,12 +290,22 @@ async def async_main():
             tools.extend(mcp_tools)
             console.print(f"[green]✅ Added {len(mcp_tools)} MCP tools to tool list[/green]")
             
-            # Debug: Show MCP tool details
-            for mcp_tool in mcp_tools:
-                console.print(f"[dim]MCP Tool: {mcp_tool.name} (type: {type(mcp_tool).__name__})[/dim]")
-                
+            # Show which servers are active
+            context7_tools = [t for t in mcp_tools if hasattr(t, 'server_name') and t.server_name == 'context7']
+            pubmed_tools = [t for t in mcp_tools if hasattr(t, 'server_name') and t.server_name == 'pubmed-mcp-server']
+            
+            if context7_tools:
+                console.print(f"[green]• Context7: {len(context7_tools)} tools[/green]")
+            if pubmed_tools:
+                console.print(f"[green]• PubMed: {len(pubmed_tools)} tools[/green]")
         except Exception as e:
-            console.print(f"[yellow]⚠️  Could not add MCP tools: {str(e)}[/yellow]")
+            console.print(f"[red]❌ Failed to load MCP tools: {e}[/red]")
+            logger.error(f"MCP tools loading failed: {e}")
+    
+    # Debug: Show MCP tool details if available
+    if mcp_registry and 'mcp_tools' in locals():
+        for mcp_tool in mcp_tools:
+            console.print(f"[dim]MCP Tool: {mcp_tool.name} (type: {type(mcp_tool).__name__})[/dim]")
     
     # Log available tools before creating agent
     tool_names = [tool.name for tool in tools]
@@ -308,10 +322,24 @@ You have access to Context7 tools for real-time documentation:
 - **resolve-library-id**: Convert library names (e.g., "react", "fastapi") to Context7-compatible IDs
 - **get-library-docs**: Fetch current, up-to-date documentation from official sources
 
+### PubMed MCP Tools (if available):
+You have access to PubMed tools for biomedical literature research:
+- **search_pubmed_key_words**: Search PubMed using keywords
+- **search_pubmed_advanced**: Advanced PubMed search with complex queries
+- **get_pubmed_article_metadata**: Retrieve detailed article metadata
+- **download_pubmed_pdf**: Access full-text PDFs of articles
+
 Always use Context7 BEFORE coding to ensure you have the latest information:
 1. Call resolve-library-id with the library name
 2. Use get-library-docs with the returned library ID and specific topic
 3. Apply the current documentation in your code generation
+
+For biomedical/scientific research:
+1. Use search_pubmed_key_words for basic literature searches
+2. Use search_pubmed_advanced for complex queries
+3. Get detailed metadata with get_pubmed_article_metadata
+4. Download full papers with download_pubmed_pdf
+5. Use Claude Code to analyze and synthesize findings
 
 ### Claude Code Tool (if available):
 Use the claude_code tool for complex code generation, refactoring, and file operations:
@@ -350,7 +378,7 @@ This combination provides both up-to-date knowledge and powerful implementation 
     logger_for_agent_logs.info(f"Available tools in agent: {', '.join(available_tool_names)}")
     
     if mcp_registry:
-        mcp_tool_names = ["resolve-library-id", "get-library-docs"]
+        mcp_tool_names = ["resolve-library-id", "get-library-docs", "search_pubmed_key_words", "search_pubmed_advanced", "get_pubmed_article_metadata", "download_pubmed_pdf"]
         mcp_tools_found = [name for name in mcp_tool_names if name in available_tool_names]
         
         if mcp_tools_found:
@@ -392,7 +420,17 @@ Make sure to use the latest FastAPI features from Context7.""",
 3. Creates visualizations with matplotlib/seaborn
 4. Generates a comprehensive report
 5. Includes proper error handling and data validation
-Use the most current pandas methods from Context7."""
+Use the most current pandas methods from Context7.""",
+        
+        """Use PubMed MCP to search for recent machine learning applications in drug discovery, then use Claude Code to:
+1. Search using keywords and advanced queries
+2. Download PDFs and extract metadata
+3. Create a research summary with citation analysis
+4. Build a database to store and categorize findings
+5. Generate visualizations of research trends
+6. Create a web interface to browse the research
+7. Include proper academic citation formatting
+Focus on papers from the last 2 years."""
     ]
     
     current_demo = 0
