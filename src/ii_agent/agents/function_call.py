@@ -184,11 +184,18 @@ try breaking down the task into smaller steps. After call this tool to update or
                     base64_image = encode_image(
                         str(self.workspace_manager.workspace_path(file))
                     )
+                    try:
+                        import magic
+
+                        media_type = magic.from_buffer(base64_image, mime=True)
+                    except Exception:
+                        media_type = f"image/{ext}"
+
                     image_blocks.append(
                         {
                             "source": {
                                 "type": "base64",
-                                "media_type": f"image/{ext}",
+                                "media_type": media_type,
                                 "data": base64_image,
                             }
                         }

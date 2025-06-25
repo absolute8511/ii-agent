@@ -41,6 +41,7 @@ dependencies = [
     "uvicorn[standard]>=0.29.0,<0.30.0",
     "youtube-transcript-api>=1.0.3",
     "alembic>=1.16.1",
+    "python-magic>=0.4.27",
 ]
 
 [project.optional-dependencies]

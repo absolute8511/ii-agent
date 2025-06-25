@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     ffmpeg \
     xvfb \
+    libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install the project's dependencies using the lockfile and settings
