@@ -107,7 +107,6 @@ class Browser:
         self.detector: Optional[Detector] = config.detector
 
         self.screenshot_scale_factor = None
-        
         # Store console logs
         self.captured_logs = {}
 
@@ -170,7 +169,6 @@ class Browser:
             else:
                 logger.info("Launching new browser instance")
                 self.playwright_browser = await self.playwright.chromium.launch(
-                    channel="chrome",
                     headless=False,
                     args=[
                         "--no-sandbox",
