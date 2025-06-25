@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ClaudeCodeContext:
-    """Context for a Claude Code conversation."""
+    """Context for a Claude Code conversation with build tracking."""
     
     session_id: str
     created_at: datetime = field(default_factory=datetime.now)
@@ -43,6 +43,12 @@ class ClaudeCodeContext:
     file_operations: List[Dict[str, Any]] = field(default_factory=list)
     code_artifacts: Dict[str, str] = field(default_factory=dict)
     turn_count: int = 0
+    
+    # Enhanced build tracking
+    build_attempts: List[Dict[str, Any]] = field(default_factory=list)
+    error_patterns: Dict[str, str] = field(default_factory=dict)
+    successful_builds: List[Dict[str, Any]] = field(default_factory=list)
+    working_commands: Dict[str, str] = field(default_factory=dict)
     
     def update_access_time(self):
         """Update the last accessed time."""
@@ -60,6 +66,44 @@ class ClaudeCodeContext:
     def add_code_artifact(self, name: str, content: str):
         """Store a code artifact."""
         self.code_artifacts[name] = content
+        
+    def add_build_attempt(self, command: str, success: bool, error_message: Optional[str] = None):
+        """Track build attempts and their results."""
+        self.build_attempts.append({
+            "command": command,
+            "success": success,
+            "error_message": error_message,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        if success:
+            self.successful_builds.append({
+                "command": command,
+                "timestamp": datetime.now().isoformat()
+            })
+            # Store working command for future reference
+            cmd_type = self._classify_command(command)
+            if cmd_type:
+                self.working_commands[cmd_type] = command
+                
+    def add_error_pattern(self, error_type: str, solution: str):
+        """Store error patterns and their solutions."""
+        self.error_patterns[error_type] = solution
+        
+    def _classify_command(self, command: str) -> Optional[str]:
+        """Classify command type for storage."""
+        if "npm" in command or "bun" in command:
+            if "install" in command:
+                return "frontend_install"
+            elif "dev" in command or "start" in command:
+                return "frontend_dev"
+            elif "build" in command:
+                return "frontend_build"
+        elif "uvicorn" in command:
+            return "backend_start"
+        elif "pip install" in command:
+            return "backend_install"
+        return None
 
 
 class ClaudeCodeSessionManager:
@@ -107,18 +151,33 @@ class ClaudeCodeTool(LLMTool):
     """Claude Code integration tool."""
     
     name = "claude_code"
-    description = """MANDATORY FINAL PHASE TOOL - This tool MUST be used in the final phase of all development projects.
+    description = """🔧 MANDATORY FINAL PHASE TOOL - Application Builder & Fixer
 
-You are the master application builder and problem solver. Your PRIMARY mission is to MAKE APPLICATIONS WORK. This tool is ESSENTIAL for:
-- Building the full-stack application and identifying all build errors
-- Fixing ALL compilation, runtime, and integration errors
-- Enhancing existing code to ensure complete functionality
-- Testing the application thoroughly and resolving any issues
-- Making necessary code improvements to achieve working state
+🎯 WHEN TO USE THIS TOOL:
+- After completing frontend and backend development
+- When you need to build and test the full application
+- When there are build errors, runtime errors, or integration issues
+- When the application needs to be made functional and working
+- As the FINAL step before considering any development project complete
 
-Your role is NOT to review code quality - your role is to BUILD, FIX, and ENHANCE until the application runs perfectly. Focus on functionality over style. Make whatever changes are needed to get everything working properly.
+🚀 WHAT THIS TOOL DOES:
+- Builds full-stack applications (React + FastAPI, Next.js + Python, etc.)
+- Identifies and fixes ALL build errors, compilation errors, runtime errors
+- Resolves integration issues between frontend and backend
+- Tests applications thoroughly and fixes functionality issues
+- Enhances code to achieve working state (not code quality review)
+- Ensures proper deployment and running of both frontend and backend
 
-This tool represents the FINAL FUNCTIONALITY GATE - ensuring the application actually works before delivery. Every development project REQUIRES this hands-on building and fixing phase.
+⚡ AUTOMATIC CAPABILITIES:
+- Detects project type (React/Vite frontend, FastAPI backend, etc.)
+- Suggests correct build commands (npm/bun install, uvicorn server start)
+- Tracks previous build attempts and learns from errors
+- Provides workspace-aware context and smart tool selection
+
+🎯 FOCUS: FUNCTIONALITY OVER STYLE
+This tool's mission is to MAKE APPLICATIONS WORK, not review code quality. It will make whatever changes are necessary to achieve a fully functional, deployable application.
+
+⚠️ MANDATORY USAGE: Every development project MUST use this tool as the final step to ensure the application actually works before delivery.
     """
     
     input_schema = {
@@ -136,11 +195,6 @@ This tool represents the FINAL FUNCTIONALITY GATE - ensuring the application act
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "Optional list of file paths to include as context"
-            },
-            "mode": {
-                "type": "string",
-                "enum": ["auto", "generate", "refactor", "debug", "test", "review"],
-                "description": "Operation mode (default: auto)"
             },
             "max_turns": {
                 "type": "integer",
@@ -181,50 +235,61 @@ This tool represents the FINAL FUNCTIONALITY GATE - ensuring the application act
         tool_input: Dict[str, Any],
         message_history: Optional[MessageHistory] = None,
     ) -> ToolImplOutput:
-        """Execute Claude Code task."""
+        """Execute Claude Code task with enhanced workspace detection and build validation."""
         task = tool_input["task"]
+        workspace_path = tool_input.get("workspace_path", "")
         provided_context = tool_input.get("context", "")
         context_files = tool_input.get("context_files", [])
-        mode = tool_input.get("mode", "auto")
-        max_turns = tool_input.get("max_turns", 10)
+        max_turns = tool_input.get("max_turns", 100)
         
-        max_turns = 100
         # Get session ID from message history
         session_id = self._get_session_id(message_history)
         session = self.session_manager.get_or_create_session(session_id)
+        
         try:
+            # Enhanced workspace detection
+            workspace_info = await self._detect_workspace_info(workspace_path)
+            
+            # Build enhanced task with workspace context
+            enhanced_task = self._build_enhanced_task(task, workspace_path, workspace_info)
+            
             # Generate context if not provided
             if not provided_context and message_history:
                 provided_context = await self._generate_context_from_history(message_history, task)
                 if provided_context:
                     logger.info("Generated context from message history")
                     
-            # Build context prompt
+            # Build context prompt with workspace info
             context_prompt = self._build_context_prompt(
-                session, task, provided_context, context_files, mode
+                session, provided_context, context_files, workspace_info
             )
             
-            # Configure Claude Code options
+            # Configure Claude Code options with enhanced tools
             options = ClaudeCodeOptions(
-                system_prompt=self._build_system_prompt(mode),
+                system_prompt=self._build_system_prompt(),
                 append_system_prompt=context_prompt,
                 max_turns=max_turns,
                 cwd=str(self.workspace_manager.root),
                 permission_mode="acceptEdits",  # Auto-accept file edits
-                allowed_tools=["Read", "Write", "Edit", "MultiEdit", "Bash", "WebSearch"],
+                allowed_tools=self._get_enhanced_tools(workspace_info),
             )
     
             # Execute Claude Code query
-            messages = await self.run_claude_code(task, options)
-            # Update session
+            messages = await self.run_claude_code(enhanced_task, options)
+            
+            # Update session with build tracking
             session.turn_count += 1
+            if workspace_info:
+                session.add_code_artifact("workspace_info", str(workspace_info))
+            
             return ToolImplOutput(
                 messages[-1].result,
-                f"Claude Code completed task: {task[:50]}...",
+                f"Claude Code completed build/fix task: {task[:50]}...",
                 auxiliary_data={
                     "success": True,
                     "session_id": session_id,
                     "turn_count": session.turn_count,
+                    "workspace_info": workspace_info,
                 }
             )
             
@@ -242,31 +307,160 @@ This tool represents the FINAL FUNCTIONALITY GATE - ensuring the application act
             return message_history.session_id
         return f"claude_code_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
-    def _build_system_prompt(self, mode: str) -> str:
-        """Build system prompt based on mode."""
-        base_prompt = "You are Claude Code, an advanced AI coding assistant integrated into ii-agent."
+    def _build_system_prompt(self) -> str:
+        """Build system prompt with comprehensive build and fix guidance."""
+        base_prompt = """You are Claude Code, the master application builder and problem solver. Your PRIMARY mission is to MAKE APPLICATIONS WORK.
+
+## CORE MISSION: BUILD, FIX, ENHANCE
+- Build the full-stack application and identify ALL build errors
+- Fix ALL compilation, runtime, and integration errors
+- Enhance existing code to ensure complete functionality
+- Test the application thoroughly and resolve any issues
+- Make necessary code improvements to achieve working state
+
+## COMMON BUILD COMMANDS BY FRAMEWORK
+**Frontend (React/Vite):**
+- `npm install` or `bun install` - Install dependencies
+- `npm run dev` or `bun run dev` - Start development server
+- `npm run build` or `bun run build` - Build for production
+
+**Backend (FastAPI/Python):**
+- `pip install -r requirements.txt` - Install dependencies
+- `uvicorn main:app --reload --host 0.0.0.0 --port 8000` - Start server
+- `python -m pytest` - Run tests
+
+**Full-Stack Detection:**
+- Look for `package.json` (frontend), `main.py`/`requirements.txt` (backend)
+- Check for `vite.config.js`, `next.config.js`, `app.py`, `main.py`
+
+## ERROR DEBUGGING STRATEGY
+1. **Build Errors**: Read error messages carefully, fix imports, dependencies
+2. **Runtime Errors**: Check console logs, fix API endpoints, CORS issues
+3. **Integration Errors**: Verify frontend-backend communication, port conflicts
+4. **Testing**: Run the app, test all functionality, fix what doesn't work
+
+## MANDATORY ACTIONS
+- ALWAYS attempt to build and run the application
+- Fix errors systematically, starting with dependencies
+- Test all functionality after fixes
+- Ensure both frontend and backend work together
+- Make whatever changes needed for functionality
+
+Focus on FUNCTIONALITY over code style. Make the application work perfectly."""
+        return base_prompt
         
-        mode_prompts = {
-            "generate": "Focus on generating new, high-quality code implementations.",
-            "refactor": "Focus on improving code structure, readability, and performance.",
-            "debug": "Focus on finding and fixing bugs, with clear explanations.",
-            "test": "Focus on creating comprehensive test cases and test documentation.",
-            "review": "Focus on code review, identifying issues and suggesting improvements.",
-            "auto": "Analyze the task and choose the best approach automatically."
+    async def _detect_workspace_info(self, workspace_path: str) -> Dict[str, Any]:
+        """Detect workspace information for better build context."""
+        workspace_info = {
+            "type": "unknown",
+            "frontend": None,
+            "backend": None,
+            "build_commands": [],
+            "dependencies": []
         }
         
-        return f"{base_prompt} {mode_prompts.get(mode, mode_prompts['auto'])}"
+        try:
+            base_path = Path(workspace_path) if workspace_path else self.workspace_manager.root
+            
+            # Check for frontend indicators
+            if (base_path / "package.json").exists():
+                workspace_info["frontend"] = "react"
+                workspace_info["build_commands"].extend([
+                    "npm install or bun install",
+                    "npm run dev or bun run dev"
+                ])
+                
+            if (base_path / "vite.config.js").exists() or (base_path / "vite.config.ts").exists():
+                workspace_info["frontend"] = "react-vite"
+                
+            # Check for backend indicators
+            if (base_path / "main.py").exists():
+                workspace_info["backend"] = "fastapi"
+                workspace_info["build_commands"].extend([
+                    "pip install -r requirements.txt",
+                    "uvicorn main:app --reload --host 0.0.0.0 --port 8000"
+                ])
+                
+            if (base_path / "requirements.txt").exists():
+                workspace_info["backend"] = "python"
+                workspace_info["dependencies"].append("requirements.txt")
+                
+            # Determine overall type
+            if workspace_info["frontend"] and workspace_info["backend"]:
+                workspace_info["type"] = "fullstack"
+            elif workspace_info["frontend"]:
+                workspace_info["type"] = "frontend"
+            elif workspace_info["backend"]:
+                workspace_info["type"] = "backend"
+                
+        except Exception as e:
+            logger.warning(f"Failed to detect workspace info: {e}")
+            
+        return workspace_info
+    
+    def _build_enhanced_task(self, task: str, workspace_path: str, workspace_info: Dict[str, Any]) -> str:
+        """Build enhanced task with workspace context."""
+        parts = []
         
+        if workspace_path:
+            parts.append(f"## Current Workspace: {workspace_path}")
+            
+        if workspace_info.get("type") != "unknown":
+            parts.append(f"## Detected Project Type: {workspace_info['type']}")
+            
+            if workspace_info.get("frontend"):
+                parts.append(f"Frontend: {workspace_info['frontend']}")
+                
+            if workspace_info.get("backend"):
+                parts.append(f"Backend: {workspace_info['backend']}")
+                
+            if workspace_info.get("build_commands"):
+                parts.append("## Suggested Build Commands:")
+                for cmd in workspace_info["build_commands"]:
+                    parts.append(f"- {cmd}")
+                    
+        parts.append(f"## TASK: {task}")
+        parts.append("\n## MANDATORY: Build and test the application to ensure it works!")
+        
+        return "\n".join(parts)
+    
+    def _get_enhanced_tools(self, workspace_info: Dict[str, Any]) -> List[str]:
+        """Get enhanced tool list based on workspace type."""
+        base_tools = ["Read", "Write", "Edit", "MultiEdit", "Bash", "WebSearch", "Glob", "Grep"]
+        
+        # Add project-specific tools based on detection
+        if workspace_info.get("frontend"):
+            base_tools.extend(["LS"])  # For frontend file navigation
+            
+        if workspace_info.get("backend"):
+            base_tools.extend(["LS"])  # For backend file navigation
+            
+        return list(set(base_tools))  # Remove duplicates
+    
     def _build_context_prompt(
         self,
         session: ClaudeCodeContext,
-        task: str,
         provided_context: str,
         context_files: List[str],
-        mode: str,
+        workspace_info: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Build context prompt with session information and provided context."""
         parts = []
+        
+        # Add workspace information first
+        if workspace_info and workspace_info.get("type") != "unknown":
+            parts.append("## Workspace Information")
+            parts.append(f"Project Type: {workspace_info['type']}")
+            
+            if workspace_info.get("frontend"):
+                parts.append(f"Frontend: {workspace_info['frontend']}")
+            if workspace_info.get("backend"):
+                parts.append(f"Backend: {workspace_info['backend']}")
+                
+            if workspace_info.get("build_commands"):
+                parts.append("Build Commands Available:")
+                for cmd in workspace_info["build_commands"]:
+                    parts.append(f"  - {cmd}")
         
         # Add provided context from the main agent
         if provided_context:
@@ -281,6 +475,26 @@ This tool represents the FINAL FUNCTIONALITY GATE - ensuring the application act
             
             if session.conversation_summary:
                 parts.append(f"\nSummary: {session.conversation_summary}")
+                
+            # Add build tracking information
+            if session.working_commands:
+                parts.append("\n## Previously Working Commands:")
+                for cmd_type, command in session.working_commands.items():
+                    parts.append(f"- {cmd_type}: {command}")
+                    
+            if session.error_patterns:
+                parts.append("\n## Known Error Patterns & Solutions:")
+                for error_type, solution in list(session.error_patterns.items())[-5:]:  # Last 5 patterns
+                    parts.append(f"- {error_type}: {solution}")
+                    
+            if session.build_attempts:
+                recent_attempts = session.build_attempts[-3:]  # Last 3 attempts
+                parts.append(f"\n## Recent Build Attempts:")
+                for attempt in recent_attempts:
+                    status = "✓" if attempt["success"] else "✗"
+                    parts.append(f"- {status} {attempt['command']}")
+                    if not attempt["success"] and attempt.get("error_message"):
+                        parts.append(f"  Error: {attempt['error_message'][:100]}...")
                 
             if session.file_operations:
                 parts.append("\n## Recent File Operations:")

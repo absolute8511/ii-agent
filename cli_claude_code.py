@@ -234,41 +234,214 @@ claude_code(
 
     loop = asyncio.get_running_loop()
     prompt = """
-Build a simplified node-based image generation web application inspired by ComfyUI, focused on multimodal workflows using text and image nodes.
+Build a simplified node-based media generation web application inspired by ComfyUI
 
-## Core Features
+The app should allow users to visually connect nodes to create custom workflows
 
-### Node Types
-There are only two node types:
-- **Text Node**: Contains a text input box.
-- **Image Node**: Accepts uploaded images or generated ones.
+There are three node types:
+- Text Node: Contains a text input box
+- Image Node: Accepts uploaded image or displays image generated from other nodes
+- Video Node: Accepts uploaded video or displays video generated from other nodes
 
-### Supported Workflows
-Design the system to support the following graph-based multimodal workflows:
-- **text(s) → text**: Connect multiple text nodes into one text node, then output using a summarization or ideation prompt.
-- **text → image**: Connect a text node to an image node, then generate an image from a text prompt.
-- **text + image → image**: Connect a text node and an image node into an image node, then edit an image using a text instruction (e.g., "make it look like night").
-- **text + image → text**: Connect a text node and an image node into a text node, ask questions about an image ("what's in the picture?").
-- **image → text**: Connect an image node to a text node, then describe or caption an image.
-Prevent invalid connections
+Design the system to support these valid node connections:
+Consider graph execute from left to right 
+- Text(s) -> Text: Combine multiple text nodes into one summarization or ideation output
+- Text -> Image: Generate an image from a text prompt
+- Text -> Video: Generate a video from a text prompt
+- Text + Image -> Image: Apply text-based edits to an image (e.g., "make it look like night")
+- Text + Image -> Video: Generate video from a text prompt and input image as the starting frame
+- Image -> Video: Generate a video from an image as the starting frame
+- Text + Image -> Text: Ask questions about the image or extract information from it using a prompt
+- Image -> Text: Describe or caption the image automatically
 
-## Backend Execution
+Example graph:
+// Example 1: Text-to-Text
+{
+"nodes": [
+    { "id": "node_1", "type": "text", "data": { "text": "Describe the benefits of exercise." } },
+    { "id": "node_2", "type": "text", "data": {} }
+  ],
+"edges": [
+    { "id": "edge_1", "source": "node_1", "target": "node_2" }
+  ]
+}
+// Output:
+{
+    "output_nodes": [
+        { "id": "node_2", "type": "text", "data": {"text": "Exercise offers numerous benefits including improved cardiovascular health, increased strength and flexibility, enhanced mental well-being, weight management, and a reduced risk of chronic diseases."} }
+    ]
+}
 
-Use **FastAPI** for the backend.
+{
+  "nodes": [
+    { "id": "node_1", "type": "text", "data": { "text": "A dog" } },
+    { "id": "node_2", "type": "text", "data": { "text": "A cat" } },
+    { "id": "node_3", "type": "text", "data": {} }
+  ],
+  "edges": [
+    { "id": "edge_1", "source": "node_1", "target": "node_3" },
+    { "id": "edge_2", "source": "node_2", "target": "node_3" }
+  ]
+}
+// Output:
+{
+    "output_nodes": [
+        { "id": "node_3", "type": "text", "data": {"text": "A dog and a cat"} }
+    ]
+}
 
-### Endpoint
-- `/run-graph`: Accept a JSON graph definition (nodes + edges), return outputs (final node)
+// Example 2: Text-to-Image (Prompt to Image)
+{
+  "nodes": [
+    { "id": "node_1", "type": "text", "data": { "text": "A futuristic city at night" } },
+    { "id": "node_2", "type": "image", "data": {} }
+  ],
+  "edges": [
+    { "id": "edge_1", "source": "node_1", "target": "node_2" }
+  ]
+}
+// Output:
+{
+    "output_nodes": [
+        { "id": "node_2", "type": "image", "data": {"url": "<image_url>"} }
+    ]
+}
 
-### Services Used
+// Example 3: Text + Image → Image (Edit Image with Prompt)
+{
+  "nodes": [
+    { "id": "node_1", "type": "text", "data": { "text": "Make it look like winter" } },
+    { "id": "node_2", "type": "image", "data": { "url": "https://example.com/original.jpg" } },
+    { "id": "node_3", "type": "image", "data": {} }
+  ],
+  "edges": [
+    { "id": "edge_1", "source": "node_1", "target": "node_3" },
+    { "id": "edge_2", "source": "node_2", "target": "node_3" }
+  ]
+}
+// Output:
+{
+    "output_nodes": [
+        { "id": "node_3", "type": "image", "data": {"url": "<image_url>"} }
+    ]
+}
+
+// Example 4: Text + Image → Video (Generate Video from Prompt and Image)
+{
+  "nodes": [
+    { "id": "node_1", "type": "text", "data": { "text": "Animate this image to show sunrise" } },
+    { "id": "node_2", "type": "image", "data": { "url": "https://example.com/mountain.jpg" } },
+    { "id": "node_3", "type": "video", "data": {} }
+  ],
+  "edges": [
+    { "id": "edge_1", "source": "node_1", "target": "node_3" },
+    { "id": "edge_2", "source": "node_2", "target": "node_3" }
+  ]
+}
+// Output:
+{
+    "output_nodes": [
+        { "id": "node_3", "type": "video", "data": {"url": "<video_url>"} }
+    ]
+}
+
+// Example 5: Multi-step Workflow (Text → Image → Text)
+{
+  "nodes": [
+    { "id": "node_1", "type": "text", "data": { "text": "A cat playing chess" } },
+    { "id": "node_2", "type": "image", "data": {} },
+    { "id": "node_3", "type": "text", "data": {} }
+  ],
+  "edges": [
+    { "id": "edge_1", "source": "node_1", "target": "node_2" },
+    { "id": "edge_2", "source": "node_2", "target": "node_3" }
+  ]
+}
+// Output:
+{
+    "output_nodes": [
+        { "id": "node_2", "type": "image", "data": {"url": "<image_url>"} },
+        { "id": "node_3", "type": "text", "data": {"text": "A cat is sitting at a chessboard, appearing to contemplate its next move in a game of chess."} }
+    ]
+}
+
+// Example 6: Complex Graph (Text + Image → Image, then → Video)
+{
+  "nodes": [
+    { "id": "node_1", "type": "text", "data": { "text": "Make it look like night" } },
+    { "id": "node_2", "type": "image", "data": { "url": "https://example.com/park.jpg" } },
+    { "id": "node_3", "type": "image", "data": {} },
+    { "id": "node_4", "type": "video", "data": {} }
+  ],
+  "edges": [
+    { "id": "edge_1", "source": "node_1", "target": "node_3" },
+    { "id": "edge_2", "source": "node_2", "target": "node_3" },
+    { "id": "edge_3", "source": "node_3", "target": "node_4" }
+  ]
+}
+// Output:
+{
+    "output_nodes": [
+        { "id": "node_3", "type": "image", "data": {"url": "<image_url>"} },
+        { "id": "node_4", "type": "video", "data": {"url": "<video_url>"} }
+    ]
+}
+
+Services
 - Use [https://fal.ai](https://fal.ai) for:
   - `text → image`
+    * model: `fal-ai/imagen4/preview/fast`
+    * detail usage: https://fal.ai/models/fal-ai/imagen4/preview/fast/api?platform=python
+  - `text → video`
+    * model: `fal-ai/bytedance/seedance/v1/lite/text-to-video`
+    * detail usage: https://fal.ai/models/fal-ai/bytedance/seedance/v1/lite/text-to-video/api?platform=python
   - `text + image → image`
-- Use **OpenAI** API (GPT-4V or GPT-4) for:
+    * model: `fal-ai/flux-pro/kontext`
+    * detail usage: https://fal.ai/models/fal-ai/flux-pro/kontext/api?platform=python
+  - `text + image → video`
+    * model: `fal-ai/bytedance/seedance/v1/lite/image-to-video`
+    * detail usage: https://fal.ai/models/fal-ai/bytedance/seedance/v1/lite/image-to-video/api?platform=python
+  - `image → video`
+    * model: `fal-ai/bytedance/seedance/v1/lite/image-to-video`
+    * detail usage: https://fal.ai/models/fal-ai/bytedance/seedance/v1/lite/image-to-video/api?platform=python
+  
+  Visit the detail page for usage and parameters
+
+- Use **OpenAI** API (GPT-4o by default) for:
   - `text → text` (combine prompts)
   - `image → text` (caption or QA)
   - `text + image → text` (QA with image)
-Has a page for configuration API keys    
+
+Backend
+- FastAPI
+- `/run-graph`: Accept a JSON graph definition (nodes + edges), return output nodes
+  * The core challenge here is processing the graph in the correct order
+  * For a graph like Example 5 (Text → Image → Text), node_2 must wait for node_1's implicit "execution" (which is just providing its data), and node_3 must wait for node_2's explicit execution. You'll need to implement a topological sort of the graph to determine the correct, dependency-aware execution order
+  * For simple, when the workflow is done, the all the output nodes will be returned and results are displayed in the UI
+- `/validate-graph`: Validate the graph structure
+  * edge level: Verifies all connections (from a right-side handle to a left-side handle) match allowed type patterns and that target nodes receive the correct number of inputs.
+  * node level: Confirms that any node with zero connections to its input handles (the "left side") is properly initialized with user-provided data (text or an uploaded file).
+  * Graph level: Ensures the entire workflow is a one-way flow by checking for circular dependencies (loops) that would prevent execution.
+- Don't need polling for status of the job, just return the result when the job is done
+- No need for authentication
+- Write test cases for complex workflows and cover as many scenarios as possible
+
+Frontend
+- React Flow
+- Canvas: create nodes, connect nodes and create your own personalized workflows
+- Has a page for configuration API keys and model names for fal.ai and OpenAI
+- Favor a modern, minimalistic aesthetic with a default dark mode interface
+  * Choose a color scheme from white -> grey -> dark
+  * Apply a consistent color across components, transitioning smoothly from white to grey to dark tones
+- The result of each node is displayed inside the node
+- Create an example workflow in the UI for demonstration
+
+Service keys for real testing
+openai: 
+fal.ai: 
 """
+#    prompt = "build a website of a snake game"
+ #   prompt = "hello"
     # Example prompts for Claude Code
     if not args.minimize_stdout_logs and not args.no_claude_code:
         console.print("\n[bold cyan]Example Claude Code commands:[/bold cyan]")
