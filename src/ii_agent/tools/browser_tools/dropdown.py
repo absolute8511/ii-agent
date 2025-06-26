@@ -21,6 +21,10 @@ class BrowserGetSelectOptionsTool(BrowserTool):
                 "type": "boolean",
                 "description": "Return console logs for debugging purpose."
             },
+            "network": {
+                "type": "boolean",
+                "description": "If True, return not successful network responses for debugging."
+            }
         },
         
         "required": ["index"],
@@ -37,7 +41,7 @@ class BrowserGetSelectOptionsTool(BrowserTool):
         try:
             index = int(tool_input["index"])
             console = tool_input.get("console", False)
-            before = utils.get_console_logs(self.browser, console)
+            network = tool_input.get("network", False)
             # Get the page and element information
             page = await self.browser.get_current_page()
             interactive_elements = self.browser.get_state().interactive_elements
@@ -92,9 +96,8 @@ class BrowserGetSelectOptionsTool(BrowserTool):
             state = await self.browser.update_state()
             
             logs = utils.get_console_logs(self.browser, console)
-            if console:
-                logs = logs[len(before):]
-            return utils.format_screenshot_tool_output(state.screenshot, msg, logs)
+            responses = utils.get_network_responses(self.browser, network)
+            return utils.format_screenshot_tool_output(state.screenshot, msg, logs, responses)
         except Exception as e:
             error_msg = f"Get select options failed for element {index}: {type(e).__name__}: {str(e)}"
             return ToolImplOutput(tool_output=error_msg, tool_result_message=error_msg)
@@ -117,6 +120,10 @@ class BrowserSelectDropdownOptionTool(BrowserTool):
             "console": {
                 "type": "boolean",
                 "description": "If True, return console logs for debugging."
+            },
+            "network": {
+                "type": "boolean",
+                "description": "If True, return not successful network responses for debugging."
             }
         },
         "required": ["index", "option"],
@@ -134,7 +141,7 @@ class BrowserSelectDropdownOptionTool(BrowserTool):
             index = int(tool_input["index"])
             option = tool_input["option"]
             console = tool_input.get("console", False)
-            before = utils.get_console_logs(self.browser, console)
+            network = tool_input.get("network", False)
 
             # Get the interactive element
             page = await self.browser.get_current_page()
@@ -229,9 +236,8 @@ class BrowserSelectDropdownOptionTool(BrowserTool):
                 state = await self.browser.update_state()
                 
                 logs = utils.get_console_logs(self.browser, console)
-                if console:
-                    logs = logs[len(before): ]
-                return utils.format_screenshot_tool_output(state.screenshot, msg, logs)
+                responses = utils.get_network_responses(self.browser, network)
+                return utils.format_screenshot_tool_output(state.screenshot, msg, logs, responses)
             else:
                 error_msg = result.get("error", "Unknown error")
                 if "availableOptions" in result:

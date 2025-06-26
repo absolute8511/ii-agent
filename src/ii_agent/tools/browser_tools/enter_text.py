@@ -21,6 +21,10 @@ class BrowserEnterTextTool(BrowserTool):
             "console": {
                 "type": "boolean",
                 "description": "If True, return console logs for debugging."
+            },
+            "network": {
+                "type": "boolean",
+                "description": "If True, return not successful network responses for debugging."
             }
         },
         "required": ["text"],
@@ -37,7 +41,7 @@ class BrowserEnterTextTool(BrowserTool):
         try:
             text = tool_input["text"]
             console = tool_input.get("console", False)
-            before = utils.get_console_logs(self.browser, console)
+            network = tool_input.get("network", False)
             press_enter = tool_input.get("press_enter", False)
 
             page = await self.browser.get_current_page()
@@ -57,9 +61,8 @@ class BrowserEnterTextTool(BrowserTool):
             state = await self.browser.update_state()
             
             logs = utils.get_console_logs(self.browser, console)
-            if console:
-                logs = logs[len(before):]
-            return utils.format_screenshot_tool_output(state.screenshot, msg, logs)
+            responses = utils.get_network_responses(self.browser, network)
+            return utils.format_screenshot_tool_output(state.screenshot, msg, logs, responses)
         except Exception as e:
             error_msg = f"Enter text operation failed: {type(e).__name__}: {str(e)}"
             return ToolImplOutput(tool_output=error_msg, tool_result_message=error_msg)

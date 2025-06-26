@@ -20,6 +20,10 @@ class BrowserPressKeyTool(BrowserTool):
             "console": {
                 "type": "boolean",
                 "description": "If True, return console logs for debugging."
+            },
+            "network": {
+                "type": "boolean",
+                "description": "If True, return not successful network responses for debugging."
             }
         },
         "required": ["key"],
@@ -36,7 +40,7 @@ class BrowserPressKeyTool(BrowserTool):
         try:
             key = tool_input["key"]
             console = tool_input.get("console", False)
-            before = utils.get_console_logs(self.browser, console)
+            netwrok = tool_input.get("network", False)
             page = await self.browser.get_current_page()
             try:
                 await page.keyboard.press(key)
@@ -52,9 +56,8 @@ class BrowserPressKeyTool(BrowserTool):
             state = await self.browser.update_state()
             
             logs = utils.get_console_logs(self.browser, console)
-            if console:
-                logs = logs[len(before): ]
-            return utils.format_screenshot_tool_output(state.screenshot, msg, logs)
+            responses = utils.get_network_responses(self.browser, network)
+            return utils.format_screenshot_tool_output(state.screenshot, msg, logs, responses)
         except Exception as e:
             return ToolImplOutput(
                 f"Failed to press key: {type(e).__name__}: {str(e)}",

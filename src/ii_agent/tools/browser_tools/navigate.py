@@ -21,6 +21,10 @@ class BrowserNavigationTool(BrowserTool):
             "console": {
                 "type": "boolean",
                 "description": "If True, return console logs for debugging."
+            },
+            "network": {
+                "type": "boolean",
+                "description": "If True, return not successful network responses for debugging."
             }
         },
         "required": ["url"],
@@ -51,8 +55,10 @@ class BrowserNavigationTool(BrowserTool):
             msg = f"Navigated to {url}"
             
             console = tool_input.get("console", False)
+            network = tool_input.get("network", False)
             logs = utils.get_console_logs(self.browser, console)
-            return utils.format_screenshot_tool_output(state.screenshot, msg, logs)
+            responses = utils.get_network_responses(self.browser, network)
+            return utils.format_screenshot_tool_output(state.screenshot, msg, logs, responses)
         except Exception as e:
             error_msg = f"Navigation operation failed: {type(e).__name__}: {str(e)}"
             return ToolImplOutput(tool_output=error_msg, tool_result_message=error_msg)
@@ -71,6 +77,10 @@ class BrowserRestartTool(BrowserTool):
             "console": {
                 "type": "boolean",
                 "description": "If True, return console logs for debugging."
+            },
+            "network": {
+                "type": "boolean",
+                "description": "If True, return not successful network responses for debugging."
             }
         },
         "required": ["url"],
@@ -103,8 +113,10 @@ class BrowserRestartTool(BrowserTool):
             msg = f"Navigated to {url}"
             
             console = tool_input.get("console", False)
+            network = tool_input.get("network", False)
             logs = utils.get_console_logs(self.browser, console)
-            return utils.format_screenshot_tool_output(state.screenshot, msg, logs)
+            responses = utils.get_network_responses(self.browser, network)
+            return utils.format_screenshot_tool_output(state.screenshot, msg, logs, responses)
         except Exception as e:
             error_msg = f"Browser restart and navigation failed: {type(e).__name__}: {str(e)}"
             return ToolImplOutput(tool_output=error_msg, tool_result_message=error_msg)

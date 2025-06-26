@@ -109,6 +109,7 @@ class Browser:
         self.screenshot_scale_factor = None
         # Store console logs
         self.captured_logs = {}
+        self.network_logs = {}
 
         # Initialize state
         self._init_state()
@@ -321,6 +322,7 @@ class Browser:
         """Navigate to a URL"""
         page = await self.get_current_page()
         await self.init_console_log(url)
+        await self.init_network_log(url)
         await page.goto(url, wait_until="domcontentloaded")
         await asyncio.sleep(2)
 
@@ -361,6 +363,7 @@ class Browser:
 
         if url:
             await self.init_console_log(url)
+            await self.init_network_log(url)
             await new_page.goto(url, wait_until="domcontentloaded")
 
     async def close_current_tab(self):
@@ -585,11 +588,27 @@ class Browser:
             
         page = self.current_page
         page.on('console', lambda msg: self.captured_logs[url].append(f"[{msg.type}] {msg.text}"))
+    
+    async def init_network_log(self, url: str) -> None:
+        if url and url[-1] == '/':
+            url = url[:-1]
+        if url not in self.network_logs:
+            self.network_logs[url] = []
+        page = self.current_page
+        page.on("response", lambda response: asyncio.create_task(self.handle_response(response, url)))
+        
+    async def handle_response(self, response, url):
+        try:
+            if response.status >= 400: # Not successful responses
+                self.network_logs[url].append(f'[Error {response.status}]: {response}')
+        except Exception as e:
+            print(f"Error handling response: {e}")
 
 async def main():
     browser = Browser()
-    await browser.create_new_tab('http://localhost:9000/workspace/17122040-bcfc-4286-86d0-b8444f882382/index.html')
+    await browser.create_new_tab('http://localhost:9000/workspace/a88f92d5-3155-401e-a1d7-096efe4c0209/index.html')
     print(browser.captured_logs)
+    print(browser.network_logs)
 
 if __name__ == '__main__':
     asyncio.run(main())

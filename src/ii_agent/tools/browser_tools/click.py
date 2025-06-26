@@ -24,6 +24,10 @@ class BrowserClickTool(BrowserTool):
             "console": {
                 "type": "boolean",
                 "description": "If True, return console logs for debugging."
+            },
+            "network": {
+                "type": "boolean",
+                "description": "If True, return not successful network responses for debugging."
             }
         },
         "required": ["coordinate_x", "coordinate_y"],
@@ -41,6 +45,7 @@ class BrowserClickTool(BrowserTool):
             coordinate_x = tool_input.get("coordinate_x")
             coordinate_y = tool_input.get("coordinate_y")
             console = tool_input.get("console", False)
+            network = tool_input.get("network", False)
 
             if not coordinate_x or not coordinate_y:
                 msg = (
@@ -65,9 +70,8 @@ class BrowserClickTool(BrowserTool):
             state = await self.browser.handle_pdf_url_navigation()
 
             logs = utils.get_console_logs(self.browser, console)
-            if console:
-                logs = logs[len(before):]
-            return utils.format_screenshot_tool_output(state.screenshot, msg, logs)
+            responses = utils.get_network_responses(self.browser, network)
+            return utils.format_screenshot_tool_output(state.screenshot, msg, logs, responses)
         except Exception as e:
             error_msg = f"Click operation failed at ({coordinate_x}, {coordinate_y}): {type(e).__name__}: {str(e)}"
             return ToolImplOutput(tool_output=error_msg, tool_result_message=error_msg)
