@@ -89,12 +89,8 @@ class DeployTool(LLMTool):
             timeout=9999,
         )
         if output.success:
-            ls = self.terminal_client.shell_exec(
-                session_id,
-                f"Deployment live at https://{project_id}.vercel.app",
-                exec_dir=tool_input.get("project_path"),
-                timeout=9999,
+            return ToolImplOutput(
+                f"Deployment live at https://{project_id}.vercel.app", "Task completed"
             )
-            return ToolImplOutput(ls.output, "Task completed")
         else:
             return ToolImplOutput(output.output, "Task failed")
