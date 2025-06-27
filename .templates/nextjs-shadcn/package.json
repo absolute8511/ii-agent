@@ -4,11 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 --turbopack",
-    "build": "next build",
+    "build": "pnpm run db:generate && next build",
     "start": "next start -H 0.0.0.0",
-    "lint": "bunx biome lint --write && bunx tsc --noEmit",
-    "format": "bunx biome format --write",
-    "test": "jest"
+    "db:generate": "pnpx prisma generate || echo 'Prisma not configured, skipping...'",
+    "db:push": "pnpx prisma db push || echo 'Prisma not configured'",
+    "db:migrate": "pnpx prisma migrate dev || echo 'Prisma not configured'",
+    "lint": "pnpx biome lint --write && pnpx tsc --noEmit",
+    "format": "pnpx biome format --write",
+    "test": "jest",
+    "postinstall": "pnpm run db:generate"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",

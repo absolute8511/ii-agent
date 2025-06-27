@@ -10,6 +10,7 @@ from ii_agent.llm.context_manager.llm_summarizing import LLMSummarizingContextMa
 from ii_agent.llm.token_counter import TokenCounter
 from ii_agent.sandbox.config import SandboxSettings
 from ii_agent.tools.clients.str_replace_client import StrReplaceClient
+from ii_agent.tools.deploy_tool import DeployTool
 from ii_agent.tools.get_database_connection import DatabaseConnection
 from ii_agent.tools.image_search_tool import ImageSearchTool
 from ii_agent.tools.base import LLMTool
@@ -174,6 +175,9 @@ def get_system_tools(
             DisplayImageTool(workspace_manager=workspace_manager),
             DatabaseConnection(),
             OpenAILLMTool(),
+            DeployTool(
+                terminal_client=terminal_client, workspace_manager=workspace_manager
+            ),
         ]
     )
 

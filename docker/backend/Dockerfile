@@ -54,7 +54,7 @@ RUN playwright install --with-deps chromium
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV FILE_STORE=local
-ENV FILE_STORE_PATH=/.ii_agent_file_store
+ENV FILE_STORE_PATH=/.ii_agent
 
 RUN mkdir -p $FILE_STORE_PATH
 

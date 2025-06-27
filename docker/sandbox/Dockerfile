@@ -20,8 +20,8 @@ WORKDIR /app
 
 RUN pip install -r ii_client/requirements.txt
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm and vercel
+RUN npm install -g pnpm vercel
 
 COPY .templates /app/templates
 
