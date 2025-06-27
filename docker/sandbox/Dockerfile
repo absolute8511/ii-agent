@@ -22,7 +22,7 @@ RUN pip install -r ii_client/requirements.txt
 
 COPY .templates /app/.templates
 
-RUN pip install -r .templates/fullstack/backend/requirements.txt
+RUN pip install -r .templates/react-tailwind-python/backend/requirements.txt
 
 RUN curl -fsSL https://bun.sh/install | bash
 

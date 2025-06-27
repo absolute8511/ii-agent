@@ -59,7 +59,7 @@ class FullStackInitTool(LLMTool):
 
         print("Creating project directory: ", project_dir)
 
-        template_path = "/app/.templates/react-tailwind-python"
+        template_path = "/app/.templates/react-tailwind-python/*"
 
         get_template_command = f"cp -r {template_path} {project_dir}"
         print("Getting template: ", get_template_command)
@@ -102,18 +102,6 @@ class FullStackInitTool(LLMTool):
                 f"Failed to add frontend dependencies: {frontend_add_result.output}"
             )
 
-        frontend_add_msw_command = "bun add msw --dev"
-        frontend_add_msw_result = self.terminal_client.shell_exec(
-            session_id=self.sandbox_settings.system_shell,
-            command=frontend_add_msw_command,
-            exec_dir=frontend_dir,
-            timeout=300,  # Do not timeout
-        )
-        if not frontend_add_msw_result.success:
-            raise Exception(
-                f"Failed to add msw to frontend: {frontend_add_msw_result.output}"
-            )
-
         # backend
         backend_install_command = "pip install -r requirements.txt"
         backend_install_result = self.terminal_client.shell_exec(
@@ -129,6 +117,62 @@ class FullStackInitTool(LLMTool):
 
         print("Installed dependencies")
 
-        output_message = f"""Successfully initialized fullstack web project."""
+        output_message = f"""Successfully initialized codebase:
+```
+{project_name}
+├── backend/
+│   ├── README.md
+│   ├── requirements.txt
+│   └── src/
+│       ├── __init__.py
+│       ├── main.py
+│       └── tests/
+│           └── __init__.py
+└── frontend/
+    ├── README.md
+    ├── eslint.config.js
+    ├── index.html
+    ├── package.json
+    ├── public/
+    │   └── _redirects
+    ├── src/
+    │   ├── App.jsx
+    │   ├── components/
+    │   ├── context/
+    │   ├── index.css
+    │   ├── lib/
+    │   ├── main.jsx
+    │   ├── pages/
+    │   └── services/
+    └── vite.config.js
+```
+
+Installed dependencies:
+- Frontend:
+  * `bun install`
+  * `bun install tailwindcss @tailwindcss/vite`
+  * `bun add axios lucide-react react-router-dom`
+- Backend:
+  * `pip install -r requirements.txt`
+  * Contents of `requirements.txt`:
+```
+fastapi
+uvicorn
+sqlalchemy
+python-dotenv
+pydantic
+pydantic-settings
+pytest
+pytest-asyncio
+httpx
+openai
+bcrypt
+python-jose[cryptography]
+python-multipart
+cryptography
+requests
+```
+
+You don't need to re-install the dependencies above, they are already installed"""
 
         return ToolImplOutput(output_message, "Successfully initialized fullstack web application")

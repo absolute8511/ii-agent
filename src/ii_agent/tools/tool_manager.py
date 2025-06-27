@@ -153,62 +153,62 @@ def get_system_tools(
             ShellWaitTool(terminal_client=terminal_client),
             ShellWriteToProcessTool(terminal_client=terminal_client),
             ShellKillProcessTool(terminal_client=terminal_client),
-            ListHtmlLinksTool(workspace_manager=workspace_manager),
-            SlideDeckInitTool(
-                workspace_manager=workspace_manager,
-                terminal_client=terminal_client,
-            ),
-            SlideDeckCompleteTool(
-                workspace_manager=workspace_manager,
-                str_replace_client=str_replace_client,
-            ),
+            # ListHtmlLinksTool(workspace_manager=workspace_manager),
+            # SlideDeckInitTool(
+            #     workspace_manager=workspace_manager,
+            #     terminal_client=terminal_client,
+            # ),
+            # SlideDeckCompleteTool(
+            #     workspace_manager=workspace_manager,
+            #     str_replace_client=str_replace_client,
+            # ),
             # ProjectStartUpTool(
             #     workspace_manager=workspace_manager, terminal_client=terminal_client
             # ),
-            DisplayImageTool(workspace_manager=workspace_manager),
+            # DisplayImageTool(workspace_manager=workspace_manager),
             FullStackInitTool(workspace_manager=workspace_manager, terminal_client=terminal_client),
         ]
     )
 
-    image_search_tool = ImageSearchTool()
-    if image_search_tool.is_available():
-        tools.append(image_search_tool)
+    # image_search_tool = ImageSearchTool()
+    # if image_search_tool.is_available():
+    #     tools.append(image_search_tool)
 
     # Conditionally add tools based on tool_args
     if tool_args:
-        if tool_args.get("sequential_thinking", False):
-            tools.append(SequentialThinkingTool())
-        if tool_args.get("deep_research", False):
-            tools.append(DeepResearchTool())
-        if tool_args.get("pdf", False):
-            tools.append(PdfTextExtractTool(workspace_manager=workspace_manager))
-        if tool_args.get("media_generation", False) and (
-            os.environ.get("MEDIA_GCP_PROJECT_ID")
-            and os.environ.get("MEDIA_GCP_LOCATION")
-        ):
-            tools.append(ImageGenerateTool(workspace_manager=workspace_manager))
-            if tool_args.get("video_generation", False):
-                tools.extend(
-                    [
-                        VideoGenerateFromTextTool(workspace_manager=workspace_manager),
-                        VideoGenerateFromImageTool(workspace_manager=workspace_manager),
-                        LongVideoGenerateFromTextTool(
-                            workspace_manager=workspace_manager
-                        ),
-                        LongVideoGenerateFromImageTool(
-                            workspace_manager=workspace_manager
-                        ),
-                    ]
-                )
-        if tool_args.get("audio_generation", False) and (
-            os.environ.get("OPEN_API_KEY") and os.environ.get("AZURE_OPENAI_ENDPOINT")
-        ):
-            tools.extend(
-                [
-                    AudioTranscribeTool(workspace_manager=workspace_manager),
-                    AudioGenerateTool(workspace_manager=workspace_manager),
-                ]
-            )
+    #     if tool_args.get("sequential_thinking", False):
+    #         tools.append(SequentialThinkingTool())
+    #     if tool_args.get("deep_research", False):
+    #         tools.append(DeepResearchTool())
+    #     if tool_args.get("pdf", False):
+    #         tools.append(PdfTextExtractTool(workspace_manager=workspace_manager))
+    #     if tool_args.get("media_generation", False) and (
+    #         os.environ.get("MEDIA_GCP_PROJECT_ID")
+    #         and os.environ.get("MEDIA_GCP_LOCATION")
+    #     ):
+    #         tools.append(ImageGenerateTool(workspace_manager=workspace_manager))
+    #         if tool_args.get("video_generation", False):
+    #             tools.extend(
+    #                 [
+    #                     VideoGenerateFromTextTool(workspace_manager=workspace_manager),
+    #                     VideoGenerateFromImageTool(workspace_manager=workspace_manager),
+    #                     LongVideoGenerateFromTextTool(
+    #                         workspace_manager=workspace_manager
+    #                     ),
+    #                     LongVideoGenerateFromImageTool(
+    #                         workspace_manager=workspace_manager
+    #                     ),
+    #                 ]
+    #             )
+    #     if tool_args.get("audio_generation", False) and (
+    #         os.environ.get("OPEN_API_KEY") and os.environ.get("AZURE_OPENAI_ENDPOINT")
+    #     ):
+    #         tools.extend(
+    #             [
+    #                 AudioTranscribeTool(workspace_manager=workspace_manager),
+    #                 AudioGenerateTool(workspace_manager=workspace_manager),
+    #             ]
+    #         )
 
         # Browser tools
         if tool_args.get("browser", False):
