@@ -8,6 +8,7 @@ from e2b import Sandbox
 from ii_agent.llm.base import LLMClient
 from ii_agent.llm.context_manager.llm_summarizing import LLMSummarizingContextManager
 from ii_agent.llm.token_counter import TokenCounter
+from ii_agent.prompts.system_prompt import SystemPromptBuilder
 from ii_agent.sandbox.config import SandboxSettings
 from ii_agent.tools.clients.str_replace_client import StrReplaceClient
 from ii_agent.tools.deploy_tool import DeployTool
@@ -85,6 +86,7 @@ def get_system_tools(
     client: LLMClient,
     workspace_manager: WorkspaceManager,
     message_queue: asyncio.Queue,
+    system_prompt_builder: SystemPromptBuilder,
     tool_args: Dict[str, Any] = None,
 ) -> list[LLMTool]:
     """
@@ -155,7 +157,9 @@ def get_system_tools(
             MessageTool(),
             WebSearchTool(),
             VisitWebpageTool(),
-            ShellExecTool(terminal_client=terminal_client),
+            ShellExecTool(
+                terminal_client=terminal_client, workspace_manager=workspace_manager
+            ),
             ShellViewTool(terminal_client=terminal_client),
             ShellWaitTool(terminal_client=terminal_client),
             ShellWriteToProcessTool(terminal_client=terminal_client),

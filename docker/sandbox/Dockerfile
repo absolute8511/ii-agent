@@ -20,9 +20,8 @@ WORKDIR /app
 
 RUN pip install -r ii_client/requirements.txt
 
-# Install pnpm and vercel
-RUN npm install -g pnpm vercel
-
 COPY .templates /app/templates
+
+RUN curl -fsSL https://bun.sh/install | bash
 
 CMD ["python", "-m", "ii_client.sandbox_server", "--port", "17300" , "--cwd", "/workspace"]

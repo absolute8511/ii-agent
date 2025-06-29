@@ -15,8 +15,7 @@ from ii_agent.llm.token_counter import TokenCounter
 from ii_agent.db.manager import Sessions
 from ii_agent.tools import get_system_tools
 from ii_agent.prompts.system_prompt import (
-    get_system_prompt,
-    get_system_prompt_with_seq_thinking,
+    SystemPromptBuilder,
 )
 from ii_agent.prompts.reviewer_system_prompt import REVIEWER_SYSTEM_PROMPT
 from ii_agent.utils.constants import TOKEN_BUDGET
@@ -167,19 +166,22 @@ class AgentFactory:
         # Initialize agent queue and tools
         session_id = workspace_manager.session_id
         queue = asyncio.Queue()
+        # System prompt builder class put in as input, then whenever a tool is called, use system prompt class. update to  update the system prompt.
+
+        system_prompt_builder = SystemPromptBuilder(
+            workspace_manager.workspace_mode,
+            tool_args.get("sequential_thinking", False),
+        )
+
         tools = get_system_tools(
             client=client,
             workspace_manager=workspace_manager,
             message_queue=queue,
             tool_args=tool_args,
+            system_prompt_builder=system_prompt_builder,
         )
 
         # Choose system prompt based on tool args
-        system_prompt = (
-            get_system_prompt_with_seq_thinking(workspace_manager.workspace_mode)
-            if tool_args.get("sequential_thinking", False)
-            else get_system_prompt(workspace_manager.workspace_mode)
-        )
 
         # try to get history from file store
         init_history = MessageHistory(context_manager)
@@ -190,7 +192,7 @@ class AgentFactory:
             logger.info(f"No history found for session {session_id}")
 
         agent = FunctionCallAgent(
-            system_prompt=system_prompt,
+            system_prompt_builder=system_prompt_builder,
             client=client,
             tools=tools,
             workspace_manager=workspace_manager,

@@ -6,6 +6,30 @@ from ii_agent.sandbox.config import SandboxSettings
 from utils import WorkSpaceMode
 
 
+class SystemPromptBuilder:
+    def __init__(self, workspace_mode: WorkSpaceMode, sequential_thinking: bool):
+        self.workspace_mode = workspace_mode
+        self.default_system_prompt = (
+            get_system_prompt(workspace_mode)
+            if not sequential_thinking
+            else get_system_prompt_with_seq_thinking(workspace_mode)
+        )
+        self.system_prompt = self.default_system_prompt
+
+    def reset_system_prompt(self):
+        self.system_prompt = self.default_system_prompt
+
+    def get_system_prompt(self):
+        return self.system_prompt
+
+    def update_web_dev_rules(self, web_dev_rules: str):
+        self.system_prompt = f"""{self.default_system_prompt}
+<web_dev_rules>
+{web_dev_rules}
+</web_dev_rules>
+"""
+
+
 def get_home_directory(workspace_mode: WorkSpaceMode) -> str:
     if workspace_mode != WorkSpaceMode.LOCAL:
         return SandboxSettings().work_dir
@@ -534,7 +558,7 @@ System Environment:
 
 Development Environment:
 - Python 3.10.12 (commands: python3, pip3)
-- Node.js 20.18.0 (commands: node, npm, pnpm)
+- Node.js 20.18.0 (commands: node, npm, bun)
 - Basic calculator (command: bc)
 - Installed packages: numpy, pandas, sympy and other common packages
 

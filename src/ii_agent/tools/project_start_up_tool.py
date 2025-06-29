@@ -9,7 +9,7 @@ from ii_agent.utils import deployment_rule
 
 class ProjectStartUpTool(LLMTool):
     name = "project_start_up"
-    description = "Shortcut to create a new web project from a framework template. Each is configured with TypeScript, Biome, and pnpm. Choose the best framework for the project. Do not use this tool if the desired framework is not listed."
+    description = "Shortcut to create a new web project from a framework template. Each is configured with TypeScript, Biome, and bun. Choose the best framework for the project. Do not use this tool if the desired framework is not listed."
     input_schema = {
         "type": "object",
         "properties": {
@@ -60,7 +60,7 @@ class ProjectStartUpTool(LLMTool):
             )
 
             # Clone the reveal.js repository to the specified path
-            install_command = f"cd {project_dir} && pnpm install"
+            install_command = f"cd {project_dir} && bun install"
             install_result = self.terminal_client.shell_exec(
                 self.sandbox_settings.system_shell,
                 install_command,

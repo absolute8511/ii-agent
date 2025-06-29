@@ -4,15 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 --turbopack",
-    "build": "pnpm run db:generate && next build",
+    "build": "bun run db:generate && next build",
     "start": "next start -H 0.0.0.0",
-    "db:generate": "pnpx prisma generate || echo 'Prisma not configured, skipping...'",
-    "db:push": "pnpx prisma db push || echo 'Prisma not configured'",
-    "db:migrate": "pnpx prisma migrate dev || echo 'Prisma not configured'",
-    "lint": "pnpx biome lint --write && pnpx tsc --noEmit",
-    "format": "pnpx biome format --write",
+    "db:generate": "bunx prisma generate || echo 'Prisma not configured, skipping...'",
+    "db:push": "bunx prisma db push || echo 'Prisma not configured'",
+    "db:migrate": "bunx prisma migrate dev || echo 'Prisma not configured'",
+    "lint": "bunx biome lint --write && bunx tsc --noEmit",
+    "format": "bunx biome format --write",
     "test": "jest",
-    "postinstall": "pnpm run db:generate"
+    "postinstall": "bun run db:generate"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
@@ -29,7 +29,8 @@
     "react-dom": "^18.3.1",
     "supertest": "^7.1.1",
     "tailwind-merge": "^3.3.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "vercel": "^44.2.5"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
