@@ -70,7 +70,7 @@ class PostgresDatabaseClient(DatabaseClient):
         """
         if not os.getenv("NEON_API_KEY"):
             raise ValueError("NEON_API_KEY environment variable not set")
-        while len(self.get_all_postgres_databases()) >= 3:
+        while len(self.get_all_postgres_databases()) >= 10:
             self.delete_postgres_database(self.get_all_postgres_databases()[0])
 
     def create_postgresql(self) -> str:

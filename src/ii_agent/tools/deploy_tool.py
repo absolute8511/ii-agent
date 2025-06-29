@@ -1,5 +1,6 @@
 """Tool for starting a development server for a project."""
 
+import requests
 import os
 import hashlib
 from typing import Any, Optional
@@ -89,6 +90,26 @@ class DeployTool(LLMTool):
             timeout=9999,
         )
         if output.success:
+            headers = {
+                "Authorization": f"Bearer {os.getenv('VERCEL_TOKEN')}",
+                "Content-Type": "application/json",
+            }
+
+            response = requests.get(
+                f"https://api.vercel.com/v9/projects/{project_id}/domains",
+                headers=headers,
+            )
+
+            if response.status_code == 200:
+                domains_data = response.json()
+                domains = domains_data.get("domains", [])
+                if domains:
+                    domain_name = domains[0]["name"]
+                    print("Got domain name from api call :", domain_name)
+                    return ToolImplOutput(
+                        f"Deployment live at https://{domain_name}", "Task completed"
+                    )
+
             return ToolImplOutput(
                 f"Deployment live at https://{project_id}.vercel.app", "Task completed"
             )
