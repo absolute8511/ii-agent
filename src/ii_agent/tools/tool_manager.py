@@ -18,7 +18,6 @@ from ii_agent.tools.base import LLMTool
 from ii_agent.llm.message_history import ToolCallParameters
 from ii_agent.tools.clients.config import RemoteClientConfig
 from ii_agent.tools.openai_llm_tool import OpenAILLMTool
-from ii_agent.tools.project_start_up_tool import ProjectStartUpTool
 from ii_agent.tools.register_deployment import RegisterDeploymentTool
 from ii_agent.tools.shell_tools import (
     ShellExecTool,
@@ -32,6 +31,7 @@ from ii_agent.tools.clients.terminal_client import TerminalClient
 from ii_agent.tools.memory.compactify_memory import CompactifyMemoryTool
 from ii_agent.tools.memory.simple_memory import SimpleMemoryTool
 from ii_agent.tools.slide_deck_tool import SlideDeckInitTool, SlideDeckCompleteTool
+from ii_agent.tools.web_dev_tool import FullStackInitTool
 from ii_agent.tools.web_search_tool import WebSearchTool
 from ii_agent.tools.visit_webpage_tool import VisitWebpageTool
 from ii_agent.tools.str_replace_tool_relative import (
@@ -142,7 +142,8 @@ def get_system_tools(
             expand_tabs=False,
         )
         tools.append(
-            StaticDeployTool(workspace_manager=workspace_manager)
+            StaticDeployTool(workspace_manager=workspace_manager),
+            ListHtmlLinksTool(workspace_manager=workspace_manager),
         )  # Todo: Replace this with local mode of register deployment tool
     terminal_client = TerminalClient(config)
     str_replace_client = StrReplaceClient(config)
@@ -164,7 +165,6 @@ def get_system_tools(
             ShellWaitTool(terminal_client=terminal_client),
             ShellWriteToProcessTool(terminal_client=terminal_client),
             ShellKillProcessTool(terminal_client=terminal_client),
-            ListHtmlLinksTool(workspace_manager=workspace_manager),
             SlideDeckInitTool(
                 workspace_manager=workspace_manager,
                 terminal_client=terminal_client,
@@ -173,8 +173,10 @@ def get_system_tools(
                 workspace_manager=workspace_manager,
                 str_replace_client=str_replace_client,
             ),
-            ProjectStartUpTool(
-                workspace_manager=workspace_manager, terminal_client=terminal_client
+            FullStackInitTool(
+                workspace_manager=workspace_manager,
+                terminal_client=terminal_client,
+                system_prompt_builder=system_prompt_builder,
             ),
             DisplayImageTool(workspace_manager=workspace_manager),
             DatabaseConnection(),

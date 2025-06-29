@@ -149,6 +149,8 @@ PROMPT_COMMAND='reset_and_end'
             )
             # Clear tmux history
             self.run_command(f"tmux send-keys -t {session_id} 'clear' Enter")
+            while self.is_session_running(session_id):
+                time.sleep(0.1)
             self.run_command(f"tmux clear-history -t {session_id}:0")
 
             current_directory = (

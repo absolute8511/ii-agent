@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing_extensions import final
 from ii_agent.prompts.system_prompt import SystemPromptBuilder
+from ii_agent.sandbox.config import SandboxSettings
 from ii_agent.tools.clients.terminal_client import TerminalClient
 from ii_agent.utils.workspace_manager import WorkspaceManager
 
@@ -21,6 +22,7 @@ class BaseProcessor(ABC):
         self.terminal_client = terminal_client
         self.system_prompt_builder = system_prompt_builder
         self.project_name = project_name
+        self.sandbox_settings = SandboxSettings()
 
     @abstractmethod
     def install_dependencies(self):
@@ -28,18 +30,23 @@ class BaseProcessor(ABC):
 
     @final
     def copy_project_template(self):
-        self.terminal_client.shell_exec(
+        copy_result = self.terminal_client.shell_exec(
             self.sandbox_settings.system_shell,
-            f"cp -rf /app/templates/{self.template_name} {self.project_name}",
+            f"cp -rf /app/templates/{self.template_name} {self.project_name}",  # TODO: put  /app/template in the system shell
             exec_dir=str(self.workspace_manager.root_path()),
             timeout=999999,  # Quick fix: No Timeout
         )
+        if not copy_result.success:
+            raise Exception(f"Failed to copy project template: {copy_result.output}")
 
     @final
     def start_up_project(self):
-        self.copy_project_template()
-        self.install_dependencies()
-        self.system_prompt_builder.update_web_dev_rules(self.project_rule)
+        try:
+            self.copy_project_template()
+            self.install_dependencies()
+            self.system_prompt_builder.update_web_dev_rules(self.project_rule)
+        except Exception as e:
+            raise Exception(f"Failed to start up project: {e}")
 
     def get_project_rule(self) -> str:
         return self.project_rule

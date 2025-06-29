@@ -96,7 +96,7 @@ const Action = ({ workspaceInfo, type, value, onClick }: ActionProps) => {
         return <Sparkle className={className} />;
       case TOOL.PRESENTATION:
         return <Presentation className={className} />;
-      case TOOL.PROJECT_START_UP:
+      case TOOL.FULLSTACK_PROJECT_INIT:
         return <SquareChevronRight className={className} />;
       case TOOL.REVIEWER_AGENT:
         return <SearchCheck className={className} />;
@@ -144,6 +144,10 @@ const Action = ({ workspaceInfo, type, value, onClick }: ActionProps) => {
         return "Searching";
       case TOOL.IMAGE_SEARCH:
         return "Searching for Images";
+      case TOOL.GET_DATABASE_CONNECTION:
+        return "Getting Database Connection";
+      case TOOL.GET_OPENAI_KEY:
+        return "Getting OpenAI Key";
       case TOOL.VISIT:
       case TOOL.BROWSER_USE:
         return "Browsing";
@@ -187,7 +191,7 @@ const Action = ({ workspaceInfo, type, value, onClick }: ActionProps) => {
         return "Deep Researching";
       case TOOL.PRESENTATION:
         return "Using presentation agent";
-      case TOOL.PROJECT_START_UP:
+      case TOOL.FULLSTACK_PROJECT_INIT:
         return "Starting up project template";
       case TOOL.REVIEWER_AGENT:
         return "Reviewer agent";
@@ -230,6 +234,8 @@ const Action = ({ workspaceInfo, type, value, onClick }: ActionProps) => {
       case TOOL.SEQUENTIAL_THINKING:
       case TOOL.MESSAGE_USER:
         return value.tool_input?.thought;
+      case TOOL.GET_DATABASE_CONNECTION:
+        return value.tool_input?.database_type;
       case TOOL.WEB_SEARCH:
         return value.tool_input?.query;
       case TOOL.IMAGE_SEARCH:
@@ -283,7 +289,7 @@ const Action = ({ workspaceInfo, type, value, onClick }: ActionProps) => {
         return value.tool_input?.query;
       case TOOL.PRESENTATION:
         return value.tool_input?.action + ": " + value.tool_input?.description;
-      case TOOL.PROJECT_START_UP:
+      case TOOL.FULLSTACK_PROJECT_INIT:
         return value.tool_input?.framework;
       case TOOL.REVIEWER_AGENT:
         return value.content;

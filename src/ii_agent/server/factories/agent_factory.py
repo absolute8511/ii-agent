@@ -234,6 +234,11 @@ class AgentFactory:
         # Setup logging
         logger_for_agent_logs = self._setup_logger(websocket)
 
+        system_prompt_builder = SystemPromptBuilder(
+            workspace_manager.workspace_mode,
+            tool_args.get("sequential_thinking", False),
+        )
+
         # Create context manager
         context_manager = self._create_context_manager(client, logger_for_agent_logs)
 
@@ -244,6 +249,7 @@ class AgentFactory:
             workspace_manager=workspace_manager,
             message_queue=queue,
             tool_args=tool_args,
+            system_prompt_builder=system_prompt_builder,
         )
 
         reviewer_agent = ReviewerAgent(

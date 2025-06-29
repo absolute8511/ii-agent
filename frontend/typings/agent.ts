@@ -58,7 +58,7 @@ export enum TOOL {
   SHELL_WRITE_TO_PROCESS = "shell_write_to_process",
   SHELL_WAIT = "shell_wait",
   BASH = "bash",
-  PROJECT_START_UP = "project_start_up",
+  FULLSTACK_PROJECT_INIT = "fullstack_project_init",
   COMPLETE = "complete",
   STATIC_DEPLOY = "static_deploy",
   REGISTER_DEPLOYMENT = "register_deployment",
@@ -122,6 +122,7 @@ export type ActionStep = {
       input?: string;
       enter?: boolean;
       framework?: string;
+      database_type?: string;
     };
     result?: string | Record<string, unknown>;
     query?: string;

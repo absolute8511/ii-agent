@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y \
     git \
     tmux \
     bc \
-    net-tools
+    net-tools \
+    unzip
 
 #RUN echo 'export PS1="[CMD_BEGIN]\\n\\u@\\h:\\w\\n[CMD_END]"; export PS2=""' >> /root/.bashrc
 
@@ -23,5 +24,7 @@ RUN pip install -r ii_client/requirements.txt
 COPY .templates /app/templates
 
 RUN curl -fsSL https://bun.sh/install | bash
+
+RUN npm install -g vercel
 
 CMD ["python", "-m", "ii_client.sandbox_server", "--port", "17300" , "--cwd", "/workspace"]

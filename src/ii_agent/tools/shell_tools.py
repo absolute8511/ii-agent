@@ -52,7 +52,7 @@ class ShellExecTool(LLMTool):
         command = tool_input["command"]
         exec_dir = tool_input["exec_dir"]
 
-        workspace_exec_dir = self.workspace_manager.container_path(Path(exec_dir))
+        workspace_exec_dir = str(self.workspace_manager.container_path(Path(exec_dir)))
 
         result = self.terminal_client.shell_exec(
             session_id, command, workspace_exec_dir, timeout=30

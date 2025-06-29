@@ -9,15 +9,18 @@ RUN apt-get update && apt-get install -y \
     git \
     net-tools \
     bc \
+    unzip \
     tmux
 
 # Install pnpm
-RUN npm install -g pnpm
+RUN curl -fsSL https://bun.sh/install | bash
 
 COPY src/ii_agent/utils/tool_client /app/ii_client
 COPY .templates /app/templates
 
 RUN pip install -r ii_client/requirements.txt
+
+RUN npm install -g vercel
 
 RUN mkdir -p /workspace
 

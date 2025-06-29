@@ -2,6 +2,9 @@ from ii_agent.prompts.system_prompt import SystemPromptBuilder
 from ii_agent.tools.clients.terminal_client import TerminalClient
 from ii_agent.utils.web_template_processor.base_processor import BaseProcessor
 from ii_agent.utils.workspace_manager import WorkspaceManager
+from ii_agent.utils.web_template_processor.web_processor_registry import (
+    WebProcessorRegistry,
+)
 
 
 def next_shadcn_deployment_rule(project_name: str) -> str:
@@ -53,8 +56,9 @@ Banned libraries (will break with this template): Quill
 """
 
 
+@WebProcessorRegistry.register("nextjs-shadcn")
 class NextShadcnProcessor(BaseProcessor):
-    template_name = "next-shadcn"
+    template_name = "nextjs-shadcn"
 
     def __init__(
         self,
@@ -69,9 +73,11 @@ class NextShadcnProcessor(BaseProcessor):
         self.project_rule = next_shadcn_deployment_rule(project_name)
 
     def install_dependencies(self):
-        self.terminal_client.shell_exec(
+        install_result = self.terminal_client.shell_exec(
             self.sandbox_settings.system_shell,
             f"cd {self.project_name} && bun install",
             exec_dir=str(self.workspace_manager.root_path()),
             timeout=999999,  # Quick fix: No Timeout
         )
+        if not install_result.success:
+            raise Exception(f"Failed to install dependencies: {install_result.output}")
