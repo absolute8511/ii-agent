@@ -111,7 +111,8 @@ class ChatSession:
                 content={
                     "message": "Connected to Agent WebSocket Server",
                     "workspace_path": str(
-                        Path(self.config.workspace_root).resolve() / self.session_uuid
+                        Path(self.config.workspace_root).resolve()
+                        / str(self.session_uuid)
                     ),
                 },
             )
@@ -301,7 +302,8 @@ class ChatSession:
                 type=EventType.WORKSPACE_INFO,
                 content={
                     "path": str(
-                        Path(self.config.workspace_root).resolve() / self.session_uuid
+                        Path(self.config.workspace_root).resolve()
+                        / str(self.session_uuid)
                     )
                 },
             )
@@ -579,7 +581,7 @@ class ChatSession:
                 task=user_input,
                 result=final_result,
                 workspace_dir=str(
-                    Path(self.config.workspace_root).resolve() / self.session_uuid
+                    Path(self.config.workspace_root).resolve() / str(self.session_uuid)
                 ),
             )
             if reviewer_feedback and reviewer_feedback.strip():
