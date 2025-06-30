@@ -6,6 +6,7 @@ from e2b import Sandbox
 
 from ii_agent.sandbox.config import SandboxSettings
 from ii_agent.sandbox.docker_sandbox import DockerSandbox
+from ii_agent.core.config.utils import load_ii_agent_config
 
 
 class WorkSpaceMode(Enum):
@@ -114,6 +115,8 @@ class WorkspaceManager:
             container_name=container_name,
             config=settings,
             volume_bindings={
-                os.getenv("WORKSPACE_PATH") + "/" + container_name: settings.work_dir
+                load_ii_agent_config().workspace_root
+                + "/"
+                + container_name: settings.work_dir
             },
         ).create()

@@ -1,4 +1,3 @@
-import os
 import asyncio
 import logging
 from copy import deepcopy
@@ -75,11 +74,13 @@ from ii_agent.tools.video_gen_tool import (
     LongVideoGenerateFromImageTool,
 )
 from ii_agent.tools.image_gen_tool import ImageGenerateTool
+from ii_agent.tools.speech_gen_tool import SingleSpeakerSpeechGenerationTool
 from ii_agent.tools.pdf_tool import PdfTextExtractTool
 from ii_agent.tools.deep_research_tool import DeepResearchTool
 from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
 from ii_agent.utils.constants import TOKEN_BUDGET
 from ii_agent.utils.workspace_manager import WorkSpaceMode
+from ii_agent.core.storage.models.settings import Settings
 
 
 def get_system_tools(
@@ -87,6 +88,7 @@ def get_system_tools(
     workspace_manager: WorkspaceManager,
     message_queue: asyncio.Queue,
     system_prompt_builder: SystemPromptBuilder,
+    settings: Settings,
     tool_args: Dict[str, Any] = None,
 ) -> list[LLMTool]:
     """
@@ -96,13 +98,7 @@ def get_system_tools(
         list[LLMTool]: A list of all system tools.
     """
 
-    logger = logging.getLogger("presentation_context_manager")
-    context_manager = LLMSummarizingContextManager(
-        client=client,
-        token_counter=TokenCounter(),
-        logger=logger,
-        token_budget=TOKEN_BUDGET,
-    )
+    logger = logging.getLogger("tool_manager")
 
     tools = []
     config = None
@@ -145,9 +141,24 @@ def get_system_tools(
             StaticDeployTool(workspace_manager=workspace_manager),
             ListHtmlLinksTool(workspace_manager=workspace_manager),
         )  # Todo: Replace this with local mode of register deployment tool
+
     terminal_client = TerminalClient(config)
     str_replace_client = StrReplaceClient(config)
 
+    # Shell tools
+    tools.extend(
+        [
+            ShellViewTool(terminal_client=terminal_client),
+            ShellWaitTool(terminal_client=terminal_client),
+            ShellWriteToProcessTool(terminal_client=terminal_client),
+            ShellKillProcessTool(terminal_client=terminal_client),
+            ShellExecTool(
+                terminal_client=terminal_client, workspace_manager=workspace_manager
+            ),
+        ]
+    )
+
+    # Str replace tools
     tools.extend(
         [
             StrReplaceEditorToolRelative(
@@ -155,16 +166,14 @@ def get_system_tools(
                 message_queue=message_queue,
                 str_replace_client=str_replace_client,
             ),
+        ]
+    )
+
+    tools.extend(
+        [
             MessageTool(),
-            WebSearchTool(),
-            VisitWebpageTool(),
-            ShellExecTool(
-                terminal_client=terminal_client, workspace_manager=workspace_manager
-            ),
-            ShellViewTool(terminal_client=terminal_client),
-            ShellWaitTool(terminal_client=terminal_client),
-            ShellWriteToProcessTool(terminal_client=terminal_client),
-            ShellKillProcessTool(terminal_client=terminal_client),
+            WebSearchTool(settings=settings),
+            VisitWebpageTool(settings=settings),
             SlideDeckInitTool(
                 workspace_manager=workspace_manager,
                 terminal_client=terminal_client,
@@ -187,7 +196,7 @@ def get_system_tools(
         ]
     )
 
-    image_search_tool = ImageSearchTool()
+    image_search_tool = ImageSearchTool(settings=settings)
     if image_search_tool.is_available():
         tools.append(image_search_tool)
 
@@ -199,33 +208,73 @@ def get_system_tools(
             tools.append(DeepResearchTool())
         if tool_args.get("pdf", False):
             tools.append(PdfTextExtractTool(workspace_manager=workspace_manager))
-        if tool_args.get("media_generation", False) and (
-            os.environ.get("MEDIA_GCP_PROJECT_ID")
-            and os.environ.get("MEDIA_GCP_LOCATION")
-        ):
-            tools.append(ImageGenerateTool(workspace_manager=workspace_manager))
-            if tool_args.get("video_generation", False):
+        if tool_args.get("media_generation", False):
+            # Check if media config is available in settings
+            has_media_config = False
+            if settings and settings.media_config:
+                if (
+                    settings.media_config.gcp_project_id
+                    and settings.media_config.gcp_location
+                ) or (settings.media_config.google_ai_studio_api_key):
+                    has_media_config = True
+
+            if has_media_config:
+                tools.append(
+                    ImageGenerateTool(
+                        workspace_manager=workspace_manager, settings=settings
+                    )
+                )
+                if tool_args.get("video_generation", True):
+                    tools.extend(
+                        [
+                            VideoGenerateFromTextTool(
+                                workspace_manager=workspace_manager, settings=settings
+                            ),
+                            VideoGenerateFromImageTool(
+                                workspace_manager=workspace_manager, settings=settings
+                            ),
+                            LongVideoGenerateFromTextTool(
+                                workspace_manager=workspace_manager, settings=settings
+                            ),
+                            LongVideoGenerateFromImageTool(
+                                workspace_manager=workspace_manager, settings=settings
+                            ),
+                        ]
+                    )
+                if settings.media_config.google_ai_studio_api_key:
+                    tools.append(
+                        SingleSpeakerSpeechGenerationTool(
+                            workspace_manager=workspace_manager, settings=settings
+                        )
+                    )
+            else:
+                logger.warning(
+                    "Media generation tools not added due to missing configuration"
+                )
+                raise Exception(
+                    "Media generation tools not added due to missing configuration"
+                )
+        if tool_args.get("audio_generation", False):
+            # Check if audio config is available in settings
+            has_audio_config = False
+            if settings and settings.audio_config:
+                if (
+                    settings.audio_config.openai_api_key
+                    and settings.audio_config.azure_endpoint
+                ):
+                    has_audio_config = True
+
+            if has_audio_config:
                 tools.extend(
                     [
-                        VideoGenerateFromTextTool(workspace_manager=workspace_manager),
-                        VideoGenerateFromImageTool(workspace_manager=workspace_manager),
-                        LongVideoGenerateFromTextTool(
-                            workspace_manager=workspace_manager
+                        AudioTranscribeTool(
+                            workspace_manager=workspace_manager, settings=settings
                         ),
-                        LongVideoGenerateFromImageTool(
-                            workspace_manager=workspace_manager
+                        AudioGenerateTool(
+                            workspace_manager=workspace_manager, settings=settings
                         ),
                     ]
                 )
-        if tool_args.get("audio_generation", False) and (
-            os.environ.get("OPEN_API_KEY") and os.environ.get("AZURE_OPENAI_ENDPOINT")
-        ):
-            tools.extend(
-                [
-                    AudioTranscribeTool(workspace_manager=workspace_manager),
-                    AudioGenerateTool(workspace_manager=workspace_manager),
-                ]
-            )
 
         # Browser tools
         if tool_args.get("browser", False):
@@ -250,6 +299,12 @@ def get_system_tools(
 
         memory_tool = tool_args.get("memory_tool")
         if memory_tool == "compactify-memory":
+            context_manager = LLMSummarizingContextManager(
+                client=client,
+                token_counter=TokenCounter(),
+                logger=logger,
+                token_budget=TOKEN_BUDGET,
+            )
             tools.append(CompactifyMemoryTool(context_manager=context_manager))
         elif memory_tool == "none":
             pass
