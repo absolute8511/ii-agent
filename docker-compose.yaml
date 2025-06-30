@@ -46,6 +46,7 @@ services:
       # Static file base url
       - STATIC_FILE_BASE_URL=${STATIC_FILE_BASE_URL:-http://localhost:8000}
       - BASE_URL=${BASE_URL}
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}
     volumes:
       #If file doesn't exist, use a dummy file
       - ${GOOGLE_APPLICATION_CREDENTIALS:-./docker/.dummy-credentials.json}:/app/google-application-credentials.json
@@ -56,4 +57,3 @@ services:
 
 networks:
   ii:
-    name: ii

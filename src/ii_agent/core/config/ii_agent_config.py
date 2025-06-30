@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from ii_agent.utils.constants import TOKEN_BUDGET
 from pathlib import Path
 
-from ii_agent.utils.workspace_manager import WorkSpaceMode
+from ii_agent.utils.constants import WorkSpaceMode
 
 # Constants
 MAX_OUTPUT_TOKENS_PER_TURN = 32000

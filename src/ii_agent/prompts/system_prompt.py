@@ -3,7 +3,7 @@ import platform
 from ii_agent.sandbox.config import SandboxSettings
 
 
-from utils import WorkSpaceMode
+from ii_agent.utils.constants import WorkSpaceMode
 
 
 class SystemPromptBuilder:

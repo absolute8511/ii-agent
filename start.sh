@@ -1,20 +1,4 @@
 #!/bin/bash
-# Detect OS type and set HOST_IP appropriately
-
-if [ -n "$COMPOSE_PROFILE" ]; then
-  export USE_DOCKER_SANDBOX=$COMPOSE_PROFILE
-else
-  export COMPOSE_PROFILE=local
-fi
-
-echo "Using Profile " $COMPOSE_PROFILE
-
-# Create workspace directory if it doesn't exist
-if [ ! -d "${PWD}/workspace" ]; then
-  mkdir ${PWD}/workspace
-  echo "Created workspace directory"
-fi
-
 if [[ "$OSTYPE" == "darwin"* ]]; then
   # macOS
   export HOST_IP=$(ipconfig getifaddr en0)
@@ -39,4 +23,4 @@ export PUBLIC_DOMAIN=${HOST_IP}.nip.io
 export BASE_URL=${HOST_IP}.nip.io:${NGINX_PORT}
 
 # Start docker-compose with the HOST_IP variable
-COMPOSE_PROJECT_NAME=agent docker compose -f docker/docker-compose.yaml --profile $COMPOSE_PROFILE up "$@"
+docker compose up "$@"

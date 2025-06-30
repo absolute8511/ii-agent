@@ -78,8 +78,7 @@ from ii_agent.tools.speech_gen_tool import SingleSpeakerSpeechGenerationTool
 from ii_agent.tools.pdf_tool import PdfTextExtractTool
 from ii_agent.tools.deep_research_tool import DeepResearchTool
 from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
-from ii_agent.utils.constants import TOKEN_BUDGET
-from ii_agent.utils.workspace_manager import WorkSpaceMode
+from ii_agent.utils.constants import TOKEN_BUDGET, WorkSpaceMode
 from ii_agent.core.storage.models.settings import Settings
 
 

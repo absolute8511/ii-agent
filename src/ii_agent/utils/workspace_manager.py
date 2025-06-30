@@ -1,4 +1,3 @@
-from enum import Enum
 import os
 from pathlib import Path
 
@@ -7,15 +6,7 @@ from e2b import Sandbox
 from ii_agent.sandbox.config import SandboxSettings
 from ii_agent.sandbox.docker_sandbox import DockerSandbox
 from ii_agent.core.config.utils import load_ii_agent_config
-
-
-class WorkSpaceMode(Enum):
-    DOCKER = "docker"
-    E2B = "e2b"
-    LOCAL = "local"
-
-    def __str__(self):
-        return self.value
+from ii_agent.utils.constants import WorkSpaceMode
 
 
 class WorkspaceManager:
