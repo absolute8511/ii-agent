@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from pathlib import Path
 import uuid
 from typing import Optional, Dict, Any
 from fastapi import WebSocket, WebSocketDisconnect
@@ -46,13 +47,12 @@ class ChatSession:
     def __init__(
         self,
         websocket: WebSocket,
-        workspace_manager: WorkspaceManager,
+        session_uuid: uuid.UUID,
         file_store: FileStore,
         config: IIAgentConfig,
     ):
         self.websocket = websocket
-        self.workspace_manager = workspace_manager
-        self.session_uuid = workspace_manager.session_id
+        self.session_uuid = session_uuid
         self.file_store = file_store
         # Session state
         self.agent: Optional[BaseAgent] = None
@@ -110,7 +110,9 @@ class ChatSession:
                 type=EventType.CONNECTION_ESTABLISHED,
                 content={
                     "message": "Connected to Agent WebSocket Server",
-                    "workspace_path": str(self.workspace_manager.root),
+                    "workspace_path": str(
+                        Path(self.config.workspace_root).resolve() / self.session_uuid
+                    ),
                 },
             )
         )
@@ -180,10 +182,22 @@ class ChatSession:
             llm_config.thinking_tokens = init_content.thinking_tokens
             client = get_client(llm_config)
 
+            # Create workspace manager
+            workspace_path = Path(self.config.workspace_root).resolve()
+            workspace_manager = WorkspaceManager(
+                parent_dir=workspace_path,
+                session_id=str(self.session_uuid),
+                workspace_mode=self.config.use_container_workspace,
+            )
+            if self.websocket.query_params.get("session_uuid") is None:
+                await (
+                    workspace_manager.start_sandbox()
+                )  # Quick fix: Manage Sandbox lifecycle
+
             # Create agent using internal methods
             self.agent = self._create_agent(
                 client,
-                self.workspace_manager,
+                workspace_manager,
                 self.websocket,
                 init_content.tool_args,
                 self.file_store,
@@ -199,11 +213,9 @@ class ChatSession:
                 # Create reviewer agent using factory
                 self.reviewer_agent = self._create_reviewer_agent(
                     client,
-                    self.session_uuid,
-                    self.workspace_manager,
+                    workspace_manager,
                     self.websocket,
                     init_content.tool_args,
-                    self.file_store,
                     settings=settings,
                 )
 
@@ -287,7 +299,11 @@ class ChatSession:
         await self.send_event(
             RealtimeEvent(
                 type=EventType.WORKSPACE_INFO,
-                content={"path": str(self.workspace_manager.root)},
+                content={
+                    "path": str(
+                        Path(self.config.workspace_root).resolve() / self.session_uuid
+                    )
+                },
             )
         )
 
@@ -504,6 +520,11 @@ class ChatSession:
             )
             # Run the agent with the query using the new async method
             await self.agent.run_agent_async(user_input, files, resume)
+            # Save history to file store when finished
+            if self.agent.history:
+                self.agent.history.save_to_session(
+                    str(self.session_uuid), self.file_store
+                )
 
         except Exception as e:
             logger.error(f"Error running agent: {str(e)}")
@@ -557,7 +578,9 @@ class ChatSession:
                 self.reviewer_agent.run_agent,
                 task=user_input,
                 result=final_result,
-                workspace_dir=str(self.workspace_manager.root),
+                workspace_dir=str(
+                    Path(self.config.workspace_root).resolve() / self.session_uuid
+                ),
             )
             if reviewer_feedback and reviewer_feedback.strip():
                 # Send feedback to agent for improvement
@@ -601,10 +624,6 @@ Please review this feedback and implement the suggested improvements to better c
             self.agent.websocket = (
                 None  # This will prevent sending to websocket but keep processing
             )
-            if self.agent.history:
-                self.agent.history.save_to_session(
-                    str(self.session_uuid), self.file_store
-                )
 
         # Clean up reviewer agent
         if self.reviewer_agent:
@@ -625,7 +644,6 @@ Please review this feedback and implement the suggested improvements to better c
     def _create_agent(
         self,
         client: LLMClient,
-        session_id: uuid.UUID,
         workspace_manager: WorkspaceManager,
         websocket: WebSocket,
         tool_args: Dict[str, Any],
@@ -636,7 +654,6 @@ Please review this feedback and implement the suggested improvements to better c
 
         Args:
             client: LLM client instance
-            session_id: Session UUID
             workspace_manager: Workspace manager
             websocket: WebSocket connection
             tool_args: Tool configuration arguments
@@ -645,6 +662,7 @@ Please review this feedback and implement the suggested improvements to better c
             Configured agent instance
         """
         device_id = websocket.query_params.get("device_id")
+        session_id = workspace_manager.session_id
 
         # Setup logging
         logger_for_agent_logs = logging.getLogger(f"agent_logs_{id(websocket)}")
@@ -688,7 +706,6 @@ Please review this feedback and implement the suggested improvements to better c
             client,
             workspace_manager,
             websocket,
-            session_id,
             tool_args,
             context_manager,
             logger_for_agent_logs,
@@ -701,7 +718,6 @@ Please review this feedback and implement the suggested improvements to better c
         client: LLMClient,
         workspace_manager: WorkspaceManager,
         websocket: WebSocket,
-        session_id: uuid.UUID,
         tool_args: Dict[str, Any],
         context_manager,
         logger: logging.Logger,
@@ -710,6 +726,7 @@ Please review this feedback and implement the suggested improvements to better c
     ):
         """Create the actual agent instance."""
         # Initialize agent queue and tools
+        session_id = workspace_manager.session_id
         queue = asyncio.Queue()
 
         system_prompt_builder = SystemPromptBuilder(
@@ -744,28 +761,49 @@ Please review this feedback and implement the suggested improvements to better c
             max_output_tokens_per_turn=self.config.max_output_tokens_per_turn,
             max_turns=self.config.max_turns,
             websocket=websocket,
-            session_id=session_id,
         )
 
         # Store the session ID in the agent for event tracking
         agent.session_id = session_id
         return agent
 
+    def _setup_logger(self, websocket: WebSocket) -> logging.Logger:
+        """Setup logger for the agent."""
+        logger_for_agent_logs = logging.getLogger(f"agent_logs_{id(websocket)}")
+        logger_for_agent_logs.setLevel(logging.DEBUG)
+        logger_for_agent_logs.propagate = False
+
+        # Ensure we don't duplicate handlers
+        if not logger_for_agent_logs.handlers:
+            logger_for_agent_logs.addHandler(logging.FileHandler(self.config.logs_path))
+            if not self.config.minimize_stdout_logs:
+                logger_for_agent_logs.addHandler(logging.StreamHandler())
+
+        return logger_for_agent_logs
+
+    def _create_context_manager(self, client: LLMClient, logger: logging.Logger):
+        """Create context manager based on configuration."""
+        token_counter = TokenCounter()
+
+        return LLMSummarizingContextManager(
+            client=client,
+            token_counter=token_counter,
+            logger=logger,
+            token_budget=self.config.token_budget,
+        )
+
     def _create_reviewer_agent(
         self,
         client: LLMClient,
-        session_id: uuid.UUID,
         workspace_manager: WorkspaceManager,
         websocket: WebSocket,
         tool_args: Dict[str, Any],
-        file_store: FileStore,
         settings: Settings,
     ):
         """Create a new reviewer agent instance for a websocket connection.
 
         Args:
             client: LLM client instance
-            session_id: Session UUID
             workspace_manager: Workspace manager
             websocket: WebSocket connection
             tool_args: Tool configuration arguments
@@ -798,14 +836,12 @@ Please review this feedback and implement the suggested improvements to better c
             system_prompt=REVIEWER_SYSTEM_PROMPT,
             client=client,
             tools=tools,
-            workspace_manager=workspace_manager,
             message_queue=queue,
             logger_for_agent_logs=logger_for_agent_logs,
             context_manager=context_manager,
             max_output_tokens_per_turn=self.config.max_output_tokens_per_turn,
             max_turns=self.config.max_turns,
             websocket=websocket,
-            session_id=session_id,
         )
 
         return reviewer_agent

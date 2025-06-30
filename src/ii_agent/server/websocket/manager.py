@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 import uuid
 from typing import Dict, Optional
 
@@ -8,7 +7,6 @@ from fastapi import WebSocket
 from ii_agent.core.config.ii_agent_config import IIAgentConfig
 from ii_agent.core.storage.files import FileStore
 from ii_agent.server.websocket.chat_session import ChatSession
-from ii_agent.utils.workspace_manager import WorkspaceManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,24 +35,8 @@ class ConnectionManager:
         else:
             session_uuid = uuid.UUID(session_uuid)
 
-        workspace_path = Path(self.config.workspace_root).resolve()
-        workspace_manager = WorkspaceManager(
-            parent_dir=workspace_path,
-            session_id=str(session_uuid),
-            workspace_mode=self.config.use_container_workspace,
-        )
-        if websocket.query_params.get("session_uuid") is None:
-            await (
-                workspace_manager.start_sandbox()
-            )  # Quick fix: Manage Sandbox lifecycle
-
         # Create a new chat session for this connection
-        session = ChatSession(
-            websocket,
-            workspace_manager,
-            self.file_store,
-            config=self.config,
-        )
+        session = ChatSession(websocket, session_uuid, self.file_store, self.config)
         self.sessions[websocket] = session
 
         logger.info(

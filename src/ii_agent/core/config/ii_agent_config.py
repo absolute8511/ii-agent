@@ -27,8 +27,9 @@ class IIAgentConfig(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
     file_store: str = Field(default="local")
-    file_store_path: str = Field(default="~/.ii_agent")
-    use_container_workspace: WorkSpaceMode = Field(default=WorkSpaceMode.LOCAL)
+    file_store_path: str = Field(default="/.ii_agent")
+    host_workspace_path: str = Field(default="~/.ii_agent/workspace")
+    use_container_workspace: WorkSpaceMode = Field(default=WorkSpaceMode.DOCKER)
     minimize_stdout_logs: bool = False
     max_output_tokens_per_turn: int = MAX_OUTPUT_TOKENS_PER_TURN
     max_turns: int = MAX_TURNS
@@ -48,6 +49,11 @@ class IIAgentConfig(BaseSettings):
     @property
     def workspace_root(self) -> str:
         return os.path.join(self.file_store_path, "workspace")
+
+    @computed_field
+    @property
+    def host_workspace(self) -> str:
+        return os.path.expanduser(self.host_workspace_path)
 
     @computed_field
     @property

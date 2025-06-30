@@ -106,7 +106,7 @@ class WorkspaceManager:
             container_name=container_name,
             config=settings,
             volume_bindings={
-                load_ii_agent_config().workspace_root
+                load_ii_agent_config().host_workspace
                 + "/"
                 + container_name: settings.work_dir
             },

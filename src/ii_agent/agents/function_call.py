@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from typing import Any, Optional
-import uuid
 from functools import partial
 
 from typing import List
@@ -60,7 +59,6 @@ try breaking down the task into smaller steps. After call this tool to update or
         max_output_tokens_per_turn: int = 8192,
         max_turns: int = 200,
         websocket: Optional[WebSocket] = None,
-        session_id: Optional[uuid.UUID] = None,
         interactive_mode: bool = True,
     ):
         """Initialize the agent.
@@ -94,7 +92,7 @@ try breaking down the task into smaller steps. After call this tool to update or
 
         self.interrupted = False
         self.history = init_history
-        self.session_id = session_id
+        self.session_id = workspace_manager.session_id
 
         # Initialize database manager
         self.message_queue = message_queue
