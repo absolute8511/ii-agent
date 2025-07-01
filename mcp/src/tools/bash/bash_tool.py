@@ -5,11 +5,7 @@ from pydantic import Field
 from src.tools.base import BaseTool
 
 
-class BashTool(BaseTool):
-    """Tool for executing bash commands in a persistent shell session."""
-    
-    name = "Bash"
-    description = """Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
+DESCRIPTION = """Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
 
 Before executing the command, please follow these steps:
 
@@ -41,105 +37,18 @@ Usage notes:
     </good-example>
     <bad-example>
     cd /foo/bar && pytest tests
-    </bad-example>
+    </bad-example>"""
 
-
-
-
-# Committing changes with git
-
-When the user asks you to create a new git commit, follow these steps carefully:
-
-1. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following bash commands in parallel, each using the Bash tool:
-  - Run a git status command to see all untracked files.
-  - Run a git diff command to see both staged and unstaged changes that will be committed.
-  - Run a git log command to see recent commit messages, so that you can follow this repository's commit message style.
-2. Analyze all staged changes (both previously staged and newly added) and draft a commit message:
-  - Summarize the nature of the changes (eg. new feature, enhancement to an existing feature, bug fix, refactoring, test, docs, etc.). Ensure the message accurately reflects the changes and their purpose (i.e. "add" means a wholly new feature, "update" means an enhancement to an existing feature, "fix" means a bug fix, etc.).
-  - Check for any sensitive information that shouldn't be committed
-  - Draft a concise (1-2 sentences) commit message that focuses on the "why" rather than the "what"
-  - Ensure it accurately reflects the changes and their purpose
-3. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following commands in parallel:
-   - Add relevant untracked files to the staging area.
-   - Create the commit with a message ending with:
-   🤖 Generated with [Claude Code](https://claude.ai/code)
-
-   Co-Authored-By: Claude <noreply@anthropic.com>
-   - Run git status to make sure the commit succeeded.
-4. If the commit fails due to pre-commit hook changes, retry the commit ONCE to include these automated changes. If it fails again, it usually means a pre-commit hook is preventing the commit. If the commit succeeds but you notice that files were modified by the pre-commit hook, you MUST amend your commit to include them.
-
-Important notes:
-- NEVER update the git config
-- NEVER run additional commands to read or explore code, besides git bash commands
-- NEVER use the TodoWrite or Task tools
-- DO NOT push to the remote repository unless the user explicitly asks you to do so
-- IMPORTANT: Never use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.
-- If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit
-- In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC, a la this example:
-<example>
-git commit -m "$(cat <<'EOF'
-   Commit message here.
-
-   🤖 Generated with [Claude Code](https://claude.ai/code)
-
-   Co-Authored-By: Claude <noreply@anthropic.com>
-   EOF
-   )"
-</example>
-
-# Creating pull requests
-Use the gh command via the Bash tool for ALL GitHub-related tasks including working with issues, pull requests, checks, and releases. If given a Github URL use the gh command to get the information needed.
-
-IMPORTANT: When the user asks you to create a pull request, follow these steps carefully:
-
-1. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following bash commands in parallel using the Bash tool, in order to understand the current state of the branch since it diverged from the main branch:
-   - Run a git status command to see all untracked files
-   - Run a git diff command to see both staged and unstaged changes that will be committed
-   - Check if the current branch tracks a remote branch and is up to date with the remote, so you know if you need to push to the remote
-   - Run a git log command and `git diff [base-branch]...HEAD` to understand the full commit history for the current branch (from the time it diverged from the base branch)
-2. Analyze all changes that will be included in the pull request, making sure to look at all relevant commits (NOT just the latest commit, but ALL commits that will be included in the pull request!!!), and draft a pull request summary
-3. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following commands in parallel:
-   - Create new branch if needed
-   - Push to remote with -u flag if needed
-   - Create PR using gh pr create with the format below. Use a HEREDOC to pass the body to ensure correct formatting.
-<example>
-gh pr create --title "the pr title" --body "$(cat <<'EOF'
-## Summary
-<1-3 bullet points>
-
-## Test plan
-[Checklist of TODOs for testing the pull request...]
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-EOF
-)"
-</example>
-
-Important:
-- NEVER update the git config
-- DO NOT use the TodoWrite or Task tools
-- Return the PR URL when you're done, so the user can see it
-
-# Other common operations
-- View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments"""
+class BashTool(BaseTool):
+    """Tool for executing bash commands in a persistent shell session."""
+    
+    name = "Bash"
+    description = DESCRIPTION
 
     def run_impl(
         self,
         command: Annotated[str, Field(description="The command to execute")],
-        description: Annotated[Optional[str], Field(description=" Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'")] = None,
-        timeout: Annotated[Optional[int], Field(description="Optional timeout in milliseconds (max 600000)")] = None,
+        description: Annotated[Optional[str], Field(description=" Clear, concise description of what this command does in 5-10 words. Examples:\nInput: ls\nOutput: Lists files in current directory\n\nInput: git status\nOutput: Shows working tree status\n\nInput: npm install\nOutput: Installs package dependencies\n\nInput: mkdir foo\nOutput: Creates directory 'foo'")],
+        timeout: Annotated[Optional[int], Field(description="Optional timeout in milliseconds (max 600000)")],
     ) -> str:
-        """Execute a bash command and return the output."""
-        # TODO: Implement bash command execution
-        # This would involve:
-        # 1. Validating the command for security
-        # 2. Setting up the shell environment
-        # 3. Executing the command with proper timeout handling
-        # 4. Capturing stdout, stderr, and return code
-        # 5. Formatting the output appropriately
-        # 6. Handling special cases like interactive commands
-        
-        timeout_ms = timeout or 120000  # Default 2 minutes
-        desc = description or "Execute command"
-        
-        return f"Would execute: {command}\nDescription: {desc}\nTimeout: {timeout_ms}ms\n[Command output would appear here]"
+        return ""

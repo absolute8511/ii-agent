@@ -5,12 +5,7 @@ from pydantic import Field
 from src.tools.base import BaseTool
 
 
-class TodoWriteTool(BaseTool):
-    """Tool for creating and managing a structured task list for the coding session."""
-    
-    name = "TodoWrite"
-    description = """\
-Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
+DESCRIPTION = """Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.
 
 ## When to Use This Tool
@@ -65,26 +60,14 @@ NOTE that you should not use this tool if there is only one trivial task to do. 
 
 When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully."""
 
+class TodoWriteTool(BaseTool):
+    """Tool for creating and managing a structured task list for the coding session."""
+    
+    name = "TodoWrite"
+    description = DESCRIPTION
+
     def run_impl(
         self,
-        todos: Annotated[List[Dict[str, Any]], Field(description="The updated todo list. Each todo should have 'content', 'status', 'priority', and 'id' keys.")],
+        todos: Annotated[List[Dict[str, Any]], Field(description="The updated todo list")],
     ) -> str:
-        """Create or update the todo list for the session."""
-        # TODO: Implement todo writing logic
-        # This would involve:
-        # 1. Validating the todo list structure
-        # 2. Storing the todos in session storage
-        # 3. Updating existing todos or creating new ones
-        # 4. Ensuring proper state transitions
-        # 5. Providing feedback on what was updated
-        
-        todo_count = len(todos)
-        status_counts = {}
-        
-        for todo in todos:
-            status = todo.get('status', 'unknown')
-            status_counts[status] = status_counts.get(status, 0) + 1
-        
-        status_summary = ", ".join([f"{count} {status}" for status, count in status_counts.items()])
-        
-        return f"Updated todo list with {todo_count} items: {status_summary}"
+        return ""

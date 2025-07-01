@@ -5,12 +5,7 @@ from pydantic import Field
 from src.tools.base import BaseTool
 
 
-class MultiEditTool(BaseTool):
-    """Tool for making multiple edits to a single file in one operation."""
-    
-    name = "MultiEdit"
-    description = """\
-This is a tool for making multiple edits to a single file in one operation. It is built on top of the Edit tool and allows you to perform multiple find-and-replace operations efficiently. Prefer this tool over the Edit tool when you need to make multiple edits to the same file.
+DESCRIPTION = """This is a tool for making multiple edits to a single file in one operation. It is built on top of the Edit tool and allows you to perform multiple find-and-replace operations efficiently. Prefer this tool over the Edit tool when you need to make multiple edits to the same file.
 
 Before using this tool:
 
@@ -53,30 +48,15 @@ If you want to create a new file, use:
 - First edit: empty old_string and the new file's contents as new_string
 - Subsequent edits: normal edit operations on the created content"""
 
+class MultiEditTool(BaseTool):
+    """Tool for making multiple edits to a single file in one operation."""
+    
+    name = "MultiEdit"
+    description = DESCRIPTION
+
     def run_impl(
         self,
         file_path: Annotated[str, Field(description="The absolute path to the file to modify")],
-        edits: Annotated[List[Dict[str, Any]], Field(description="Array of edit operations to perform sequentially on the file. Each edit should have 'old_string', 'new_string', and optionally 'replace_all' keys.")],
+        edits: Annotated[List[Dict[str, Any]], Field(description="Array of edit operations to perform sequentially on the file")],
     ) -> str:
-        """Perform multiple edits on a file atomically."""
-        # TODO: Implement multi-edit logic
-        # This would involve:
-        # 1. Validating the file path and edits array
-        # 2. Reading the current file contents
-        # 3. Validating that all old_strings can be found
-        # 4. Applying edits sequentially while tracking changes
-        # 5. Ensuring atomicity (all or nothing)
-        # 6. Writing the final result back to the file
-        # 7. Providing feedback on what was changed
-        
-        edit_count = len(edits)
-        edit_descriptions = []
-        
-        for i, edit in enumerate(edits):
-            old_str = edit.get('old_string', '')
-            new_str = edit.get('new_string', '')
-            replace_all = edit.get('replace_all', False)
-            
-            edit_descriptions.append(f"Edit {i+1}: Replace {'all' if replace_all else '1'} occurrence(s) of '{old_str[:50]}...' with '{new_str[:50]}...'")
-        
-        return f"Would apply {edit_count} edits to {file_path}:\n" + "\n".join(edit_descriptions)
+        return ""
