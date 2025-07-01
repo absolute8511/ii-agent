@@ -40,14 +40,16 @@ Project directory `{project_name}` created successfully. Application code is in 
 ```
 IMPORTANT NOTE: This project is built with TypeScript(tsx) and Next.js App Router.
 Add components with `cd {project_name} && bunx shadcn@latest add -y -o`. Import components with `@/` alias. Note, 'toast' is deprecated, use 'sonner' instead. Before editing, run `cd {project_name} && bun install` to install dependencies. Run `cd {project_name} && bun run dev` to start the dev server ASAP to catch any runtime errors. Remember that all terminal commands must be run from the project directory.
-Any database operations should be done with Prisma ORM.
-Authentication is done with NextAuth. Use bcrypt for password hashing.
+Any database operations must be done with Prisma ORM.
+Authentication must be done with NextAuth. Use bcrypt for password hashing.
 Use Chart.js for charts. Moveable for Draggable, Resizable, Scalable, Rotatable, Warpable, Pinchable, Groupable, Snappable components.
 Use AOS for scroll animations.
-Advance animations are done with Framer Motion, Anime.js, and React Three Fiber.
+Advance animations must be done with Framer Motion, Anime.js, and React Three Fiber.
 Before writing the frontend integration, you must write an openapi spec for the backend then you must write test for all the expected http requests and responses using supertest (already installed).
-Run the test by running `bun test`. Any backend operations should pass all test begin you begin your deployment
+Run the test by running `bun test`. Any backend operations must pass all test before you begin your deployment
 The integration must follow the api contract strictly. Your predecessor was killed because he did not follow the api contract.
+
+IMPORTANT: All the todo list must be done before you can return to the user.
 
 If you need to use websocket, follow this guide: https://socket.io/how-to/use-with-nextjs
 You must use socket.io and (IMPORTANT) socket.io-client for websocket.

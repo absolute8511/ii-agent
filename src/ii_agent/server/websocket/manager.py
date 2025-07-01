@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 import uuid
 from typing import Dict, Optional
 
@@ -38,6 +39,10 @@ class ConnectionManager:
         # Create a new chat session for this connection
         session = ChatSession(websocket, session_uuid, self.file_store, self.config)
         self.sessions[websocket] = session
+
+        # Quick Fix for upload
+        workspace_path = Path(self.config.workspace_root).resolve() / str(session_uuid)
+        workspace_path.mkdir(parents=True, exist_ok=True)
 
         logger.info(
             f"New WebSocket connection and chat session established: {id(websocket)}"

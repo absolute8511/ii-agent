@@ -24,9 +24,9 @@ class SystemPromptBuilder:
 
     def update_web_dev_rules(self, web_dev_rules: str):
         self.system_prompt = f"""{self.default_system_prompt}
-<web_dev_rules>
+<web_framework_rules>
 {web_dev_rules}
-</web_dev_rules>
+</web_framework_rules>
 """
 
 
