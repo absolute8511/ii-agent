@@ -57,7 +57,7 @@ class DeployTool(LLMTool):
         self.vercel_api_key = (
             settings.third_party_integration_config.vercel_api_key.get_secret_value()
             if settings.third_party_integration_config
-            else os.getenv("VERCEL_API_KEY")
+            else os.getenv("VERCEL_TOKEN")
         )
 
     async def run_impl(
