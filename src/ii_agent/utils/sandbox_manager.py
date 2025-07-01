@@ -24,7 +24,10 @@ class SandboxManager:
 
     # WIP
     async def connect_sandbox(self):
-        pass
+        self.sandbox = SandboxRegistry.create(
+            self.workspace_mode, str(self.session_id), self.settings
+        )
+        await self.sandbox.connect()
 
     async def stop_sandbox(self):
         pass

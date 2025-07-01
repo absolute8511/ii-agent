@@ -25,3 +25,6 @@ class LocalSandbox(BaseSandbox):
 
     async def cleanup(self):
         pass
+
+    async def connect(self):
+        pass

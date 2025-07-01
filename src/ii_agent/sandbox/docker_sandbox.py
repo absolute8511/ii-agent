@@ -54,6 +54,11 @@ class DockerSandbox(BaseSandbox):
     async def stop(self):
         pass
 
+    async def connect(self):
+        self.host_url = (
+            f"http://{self.container_name}:{self.settings.sandbox_config.service_port}"
+        )
+
     def expose_port(self, port: int) -> str:
         public_url = f"http://{self.container_name}-{port}.{os.getenv('BASE_URL')}"
         return public_url

@@ -26,3 +26,6 @@ class E2BSandbox(BaseSandbox):
 
     async def stop(self):
         pass
+
+    async def connect(self):
+        pass

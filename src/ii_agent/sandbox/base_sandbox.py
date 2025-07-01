@@ -29,6 +29,10 @@ class BaseSandbox(ABC):
         return self.sandbox_id
 
     @abstractmethod
+    async def connect(self) -> None:
+        pass
+
+    @abstractmethod
     def expose_port(self, port: int) -> str:
         pass
 
