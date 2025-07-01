@@ -7,7 +7,7 @@ from ii_agent.utils.constants import WorkSpaceMode
 class SandboxConfig(BaseModel):
     """Configuration for the sandbox."""
 
-    mode: WorkSpaceMode = Field(default=WorkSpaceMode.LOCAL)
+    mode: WorkSpaceMode = Field(default=WorkSpaceMode.DOCKER)
     template_id: str | None = Field(default=None)
     sandbox_api_key: SecretStr | None = Field(default=None)
     service_port: int = Field(default=17300)
