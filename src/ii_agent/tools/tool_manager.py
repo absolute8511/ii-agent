@@ -3,19 +3,16 @@ import logging
 from copy import deepcopy
 from typing import List, Dict, Any
 
-from e2b import Sandbox
 from ii_agent.llm.base import LLMClient
 from ii_agent.llm.context_manager.llm_summarizing import LLMSummarizingContextManager
 from ii_agent.llm.token_counter import TokenCounter
 from ii_agent.prompts.system_prompt import SystemPromptBuilder
-from ii_agent.sandbox.config import SandboxSettings
 from ii_agent.tools.clients.str_replace_client import StrReplaceClient
 from ii_agent.tools.deploy_tool import DeployTool
 from ii_agent.tools.get_database_connection import DatabaseConnection
 from ii_agent.tools.image_search_tool import ImageSearchTool
 from ii_agent.tools.base import LLMTool
 from ii_agent.llm.message_history import ToolCallParameters
-from ii_agent.tools.clients.config import RemoteClientConfig
 from ii_agent.tools.openai_llm_tool import OpenAILLMTool
 from ii_agent.tools.register_deployment import RegisterDeploymentTool
 from ii_agent.tools.shell_tools import (
@@ -78,13 +75,15 @@ from ii_agent.tools.speech_gen_tool import SingleSpeakerSpeechGenerationTool
 from ii_agent.tools.pdf_tool import PdfTextExtractTool
 from ii_agent.tools.deep_research_tool import DeepResearchTool
 from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
-from ii_agent.utils.constants import TOKEN_BUDGET, WorkSpaceMode
+from ii_agent.utils.constants import TOKEN_BUDGET
 from ii_agent.core.storage.models.settings import Settings
+from ii_agent.utils.sandbox_manager import SandboxManager
 
 
 def get_system_tools(
     client: LLMClient,
     workspace_manager: WorkspaceManager,
+    sandbox_manager: SandboxManager,
     message_queue: asyncio.Queue,
     system_prompt_builder: SystemPromptBuilder,
     settings: Settings,
@@ -100,49 +99,18 @@ def get_system_tools(
     logger = logging.getLogger("tool_manager")
 
     tools = []
-    config = None
-    if workspace_manager.workspace_mode == WorkSpaceMode.E2B:
-        sandbox = Sandbox.connect(
-            workspace_manager.e2b_sandbox_id
-        )  # Quick fix needs refactoring
-        host = sandbox.get_host(17300)
-        config = RemoteClientConfig(
-            mode="e2b",
-            server_url=f"https://{host}",
-            ignore_indentation_for_str_replace=False,
-            expand_tabs=False,
-            container_id=workspace_manager.e2b_sandbox_id,
-        )
-        tools.append(
-            RegisterDeploymentTool(workspace_manager=workspace_manager, config=config)
-        )
-    elif workspace_manager.workspace_mode == WorkSpaceMode.DOCKER:
-        sandbox_settings = SandboxSettings()
-        config = RemoteClientConfig(
-            mode="remote",
-            server_url=f"http://{workspace_manager.session_id}:17300",
-            ignore_indentation_for_str_replace=False,
-            expand_tabs=False,
-            cwd=sandbox_settings.work_dir,
-            container_id=workspace_manager.session_id,
-        )
-        tools.append(
-            RegisterDeploymentTool(workspace_manager=workspace_manager, config=config)
-        )
-    else:
-        config = RemoteClientConfig(
-            mode="local",
-            cwd=str(workspace_manager.root.absolute()),
-            ignore_indentation_for_str_replace=False,
-            expand_tabs=False,
-        )
-        tools.append(
-            StaticDeployTool(workspace_manager=workspace_manager),
-            ListHtmlLinksTool(workspace_manager=workspace_manager),
+    if workspace_manager.is_local_workspace():
+        tools.extend(
+            [
+                StaticDeployTool(workspace_manager=workspace_manager),
+                ListHtmlLinksTool(workspace_manager=workspace_manager),
+            ]
         )  # Todo: Replace this with local mode of register deployment tool
+    else:
+        tools.extend([RegisterDeploymentTool(sandbox_manager=sandbox_manager)])
 
-    terminal_client = TerminalClient(config)
-    str_replace_client = StrReplaceClient(config)
+    terminal_client = TerminalClient(settings)
+    str_replace_client = StrReplaceClient(settings)
 
     # Shell tools
     tools.extend(
@@ -187,10 +155,12 @@ def get_system_tools(
                 system_prompt_builder=system_prompt_builder,
             ),
             DisplayImageTool(workspace_manager=workspace_manager),
-            DatabaseConnection(),
-            OpenAILLMTool(),
+            DatabaseConnection(settings=settings),
+            OpenAILLMTool(settings=settings),
             DeployTool(
-                terminal_client=terminal_client, workspace_manager=workspace_manager
+                terminal_client=terminal_client,
+                workspace_manager=workspace_manager,
+                settings=settings,
             ),
         ]
     )

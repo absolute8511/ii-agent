@@ -2,6 +2,7 @@ from typing import Any, Optional
 import os
 
 
+from ii_agent.core.storage.models.settings import Settings
 from ii_agent.tools.base import (
     ToolImplOutput,
     LLMTool,
@@ -22,11 +23,16 @@ class OpenAILLMTool(LLMTool):
         "required": [],
     }
 
-    def __init__(self):
+    def __init__(self, settings: Settings):
         super().__init__()
+        self.settings = settings
 
     def _get_api_key(self) -> str:
-        return os.getenv("OPENAI_API_KEY_TMP")
+        return (
+            self.settings.third_party_integration_config.openai_api_key.get_secret_value()
+            if self.settings.third_party_integration_config
+            else os.getenv("OPENAI_API_KEY_TMP")
+        )
 
     async def run_impl(
         self,

@@ -4,6 +4,7 @@ import requests
 import os
 import hashlib
 from typing import Any, Optional
+from ii_agent.core.storage.models.settings import Settings
 from ii_agent.llm.message_history import MessageHistory
 from ii_agent.tools.base import LLMTool, ToolImplOutput
 from ii_agent.tools.clients.terminal_client import TerminalClient
@@ -45,11 +46,19 @@ class DeployTool(LLMTool):
     }
 
     def __init__(
-        self, terminal_client: TerminalClient, workspace_manager: WorkspaceManager
+        self,
+        terminal_client: TerminalClient,
+        workspace_manager: WorkspaceManager,
+        settings: Settings,
     ):
         super().__init__()
         self.terminal_client = terminal_client
         self.workspace_manager = workspace_manager
+        self.vercel_api_key = (
+            settings.third_party_integration_config.vercel_api_key.get_secret_value()
+            if settings.third_party_integration_config
+            else os.getenv("VERCEL_API_KEY")
+        )
 
     async def run_impl(
         self,
@@ -63,7 +72,9 @@ class DeployTool(LLMTool):
         project_name = os.path.basename(tool_input.get("project_path"))
         project_id = project_name + "-" + "ii" + "-" + session_id_hash
 
-        link_command = f"vercel link  --yes --project {project_id} --token {os.getenv('VERCEL_TOKEN')}"
+        link_command = (
+            f"vercel link  --yes --project {project_id} --token {self.vercel_api_key}"
+        )
         output = self.terminal_client.shell_exec(
             session_id,
             link_command,
@@ -78,7 +89,7 @@ class DeployTool(LLMTool):
             )
             return ToolImplOutput(output.output, "Task failed")
 
-        deploy_command = f"vercel --prod --token {os.getenv('VERCEL_TOKEN')} -y"
+        deploy_command = f"vercel --prod --token {self.vercel_api_key} -y"
         if tool_input.get("env_vars") is not None:
             for env_var in tool_input.get("env_vars"):
                 deploy_command += f""" --env {env_var["name"]}="{env_var["value"]}" """
@@ -91,7 +102,7 @@ class DeployTool(LLMTool):
         )
         if output.success:
             headers = {
-                "Authorization": f"Bearer {os.getenv('VERCEL_TOKEN')}",
+                "Authorization": f"Bearer {self.vercel_api_key}",
                 "Content-Type": "application/json",
             }
 

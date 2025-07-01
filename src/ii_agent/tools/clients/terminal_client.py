@@ -5,7 +5,9 @@ from abc import ABC, abstractmethod
 from typing import Any
 import httpx
 
-from ii_agent.tools.clients.config import RemoteClientConfig
+from ii_agent.core.config.client_config import ClientConfig
+from ii_agent.core.storage.models.settings import Settings
+from ii_agent.utils.constants import WorkSpaceMode
 from ii_agent.utils.tool_client.manager import SessionResult, PexpectSessionManager
 
 logger = logging.getLogger(__name__)
@@ -57,10 +59,10 @@ class TerminalClientBase(ABC):
 class LocalTerminalClient(TerminalClientBase):
     """Local implementation using PexpectSessionManager directly."""
 
-    def __init__(self, config: RemoteClientConfig):
+    def __init__(self, config: ClientConfig):
         self.config = config
         self.manager = PexpectSessionManager(
-            default_shell=config.default_shell,
+            default_shell=self.config.default_shell,
             default_timeout=config.default_timeout,
             cwd=config.cwd,
             use_relative_path=True,
@@ -120,7 +122,7 @@ class LocalTerminalClient(TerminalClientBase):
 class RemoteTerminalClient(TerminalClientBase):
     """Remote implementation using HTTP API calls."""
 
-    def __init__(self, config: RemoteClientConfig):
+    def __init__(self, config: ClientConfig):
         self.config = config
         if not config.server_url:
             raise ValueError("server_url is required for remote mode")
@@ -210,15 +212,18 @@ class RemoteTerminalClient(TerminalClientBase):
 class TerminalClient:
     """Factory class for creating the appropriate client based on configuration."""
 
-    def __init__(self, config: RemoteClientConfig):
-        self.config = config
-        if config.mode == "local":
-            self._client = LocalTerminalClient(config)
-        elif config.mode == "remote" or config.mode == "e2b":
-            self._client = RemoteTerminalClient(config)
+    def __init__(self, settings: Settings):
+        self.config = settings.client_config
+        if settings.sandbox_config.mode == WorkSpaceMode.LOCAL:
+            self._client = LocalTerminalClient(self.config)
+        elif (
+            settings.sandbox_config.mode == WorkSpaceMode.E2B
+            or settings.sandbox_config.mode == WorkSpaceMode.DOCKER
+        ):
+            self._client = RemoteTerminalClient(self.config)
         else:
             raise ValueError(
-                f"Unsupported mode: {config.mode}. Must be 'local' or 'remote' or 'e2b'"
+                f"Unsupported mode: {self.config.mode}. Must be 'local' or 'remote' or 'e2b'"
             )
 
     def create_session(self, session_id: str) -> SessionResult:

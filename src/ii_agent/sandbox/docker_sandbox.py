@@ -1,14 +1,19 @@
 import asyncio
 import os
 import uuid
-from typing import Dict, Optional
+from typing import Dict
 
 import docker
-from docker.models.containers import Container
+from ii_agent.core.config.utils import load_ii_agent_config
+from ii_agent.core.storage.models.settings import Settings
+from ii_agent.sandbox.base_sandbox import BaseSandbox
 from ii_agent.sandbox.config import SandboxSettings
+from ii_agent.sandbox.sandbox_registry import SandboxRegistry
+from ii_agent.utils.constants import WorkSpaceMode
 
 
-class DockerSandbox:
+@SandboxRegistry.register(WorkSpaceMode.DOCKER)
+class DockerSandbox(BaseSandbox):
     """Docker sandbox environment.
 
     Provides a containerized execution environment with resource limits,
@@ -21,11 +26,12 @@ class DockerSandbox:
         container: Docker container instance.
     """
 
+    mode: WorkSpaceMode = WorkSpaceMode.DOCKER
+
     def __init__(
         self,
         container_name: str,
-        config: SandboxSettings = None,
-        volume_bindings: Optional[Dict[str, str]] = None,
+        settings: Settings,
     ):
         """Initializes a sandbox instance.
 
@@ -33,22 +39,24 @@ class DockerSandbox:
             config: Sandbox configuration. Default configuration used if None.
             volume_bindings: Volume mappings in {host_path: container_path} format.
         """
-        self.container_name = container_name
-        self.config = (
-            config or SandboxSettings()
-        )  # Use default SandboxSettings if config is None
-        self.volume_bindings = volume_bindings or {}
+        super().__init__(container_name=container_name, settings=settings)
+        self.config = SandboxSettings()
+        self.volume_bindings = {
+            load_ii_agent_config().host_workspace
+            + "/"
+            + container_name: self.config.work_dir
+        }
         self.client = docker.from_env()
-        self.container: Optional[Container] = None
-        self.container_id: Optional[str] = None
 
-    async def run_command(self, command: str) -> None:
-        """Runs a command in the sandbox container.
-
-        Args:
-            command: Command to run.
-        """
+    async def start(self):
         pass
+
+    async def stop(self):
+        pass
+
+    def expose_port(self, port: int) -> str:
+        public_url = f"http://{self.container_name}-{port}.{os.getenv('BASE_URL')}"
+        return public_url
 
     async def create(self):
         """Creates and starts the sandbox container.
@@ -91,6 +99,9 @@ class DockerSandbox:
             self.container = self.client.containers.get(container["Id"])
             self.container_id = container["Id"]
             self.container.start()
+
+            self.host_url = f"http://{self.container_name}:{self.settings.sandbox_config.service_port}"
+            self.sandbox_id = self.container_id
             print(f"Container created: {self.container_id}")
         except Exception as e:
             await self.cleanup()  # Ensure resources are cleaned up

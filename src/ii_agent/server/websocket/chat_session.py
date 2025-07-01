@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
+from ii_agent.core.config.client_config import ClientConfig
 from ii_agent.llm.base import ToolCall
 from ii_agent.agents.base import BaseAgent
 from ii_agent.agents.reviewer import ReviewerAgent
@@ -17,6 +18,7 @@ from ii_agent.core.storage.settings.file_settings_store import FileSettingsStore
 from ii_agent.db.manager import Sessions, Events
 from ii_agent.llm import get_client
 from ii_agent.utils.prompt_generator import enhance_user_prompt
+from ii_agent.utils.sandbox_manager import SandboxManager
 from ii_agent.utils.workspace_manager import WorkspaceManager
 from ii_agent.server.models.messages import (
     WebSocketMessage,
@@ -188,17 +190,30 @@ class ChatSession:
             workspace_manager = WorkspaceManager(
                 parent_dir=workspace_path,
                 session_id=str(self.session_uuid),
-                workspace_mode=self.config.use_container_workspace,
+                settings=settings,
+            )
+
+            sandbox_manager = SandboxManager(
+                session_id=self.session_uuid, settings=settings
             )
             if self.websocket.query_params.get("session_uuid") is None:
-                await (
-                    workspace_manager.start_sandbox()
-                )  # Quick fix: Manage Sandbox lifecycle
+                await sandbox_manager.start_sandbox()
+            else:
+                # WIP
+                await sandbox_manager.connect_sandbox()
+
+            # Update Config for client
+            client_config = ClientConfig(
+                server_url=sandbox_manager.get_host_url(),
+                cwd=str(workspace_manager.root.absolute()),
+            )
+            settings.client_config = client_config
 
             # Create agent using internal methods
             self.agent = self._create_agent(
                 client,
                 workspace_manager,
+                sandbox_manager,
                 self.websocket,
                 init_content.tool_args,
                 self.file_store,
@@ -215,6 +230,7 @@ class ChatSession:
                 self.reviewer_agent = self._create_reviewer_agent(
                     client,
                     workspace_manager,
+                    sandbox_manager,
                     self.websocket,
                     init_content.tool_args,
                     settings=settings,
@@ -647,6 +663,7 @@ Please review this feedback and implement the suggested improvements to better c
         self,
         client: LLMClient,
         workspace_manager: WorkspaceManager,
+        sandbox_manager: SandboxManager,
         websocket: WebSocket,
         tool_args: Dict[str, Any],
         file_store: FileStore,
@@ -707,6 +724,7 @@ Please review this feedback and implement the suggested improvements to better c
         return self._create_agent_instance(
             client,
             workspace_manager,
+            sandbox_manager,
             websocket,
             tool_args,
             context_manager,
@@ -719,6 +737,7 @@ Please review this feedback and implement the suggested improvements to better c
         self,
         client: LLMClient,
         workspace_manager: WorkspaceManager,
+        sandbox_manager: SandboxManager,
         websocket: WebSocket,
         tool_args: Dict[str, Any],
         context_manager,
@@ -738,6 +757,7 @@ Please review this feedback and implement the suggested improvements to better c
         tools = get_system_tools(
             client=client,
             workspace_manager=workspace_manager,
+            sandbox_manager=sandbox_manager,
             message_queue=queue,
             system_prompt_builder=system_prompt_builder,
             settings=settings,
@@ -798,6 +818,7 @@ Please review this feedback and implement the suggested improvements to better c
         self,
         client: LLMClient,
         workspace_manager: WorkspaceManager,
+        sandbox_manager: SandboxManager,
         websocket: WebSocket,
         tool_args: Dict[str, Any],
         settings: Settings,
@@ -829,6 +850,7 @@ Please review this feedback and implement the suggested improvements to better c
         tools = get_system_tools(
             client=client,
             workspace_manager=workspace_manager,
+            sandbox_manager=sandbox_manager,
             message_queue=queue,
             system_prompt_builder=system_prompt_builder,
             settings=settings,

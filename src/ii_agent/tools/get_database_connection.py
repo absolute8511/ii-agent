@@ -1,4 +1,5 @@
 from typing import Any, Optional
+from ii_agent.core.storage.models.settings import Settings
 from ii_agent.tools.base import (
     ToolImplOutput,
     LLMTool,
@@ -29,11 +30,12 @@ class DatabaseConnection(LLMTool):
         "required": ["database_name", "database_type"],
     }
 
-    def __init__(self):
+    def __init__(self, settings: Settings):
         super().__init__()
+        self.settings = settings
 
     def _get_database_connection(self, database_name: str, database_type: str) -> str:
-        database_client = get_database_client(database_type)
+        database_client = get_database_client(database_type, self.settings)
         return database_client.get_database_connection()
 
     async def run_impl(

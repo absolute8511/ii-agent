@@ -4,6 +4,8 @@ import requests
 
 from dotenv import load_dotenv
 
+from ii_agent.core.storage.models.settings import Settings
+
 load_dotenv()
 
 
@@ -14,18 +16,23 @@ class DatabaseClient(ABC):
 
 
 class PostgresDatabaseClient(DatabaseClient):
-    def __init__(self):
-        pass
+    def __init__(self, setting: Settings):
+        self.setting = setting
+        self.neon_db_api_key = (
+            setting.third_party_integration_config.neon_db_api_key.get_secret_value()
+            if setting.third_party_integration_config
+            else os.getenv("NEON_API_KEY")
+        )
 
     def get_all_postgres_databases(self) -> list[str]:
         """
         Get all Postgres databases from Neon
         Returns a list of database IDs
         """
-        if not os.getenv("NEON_API_KEY"):
+        if not self.neon_db_api_key:
             raise ValueError("NEON_API_KEY environment variable not set")
         headers = {
-            "Authorization": f"Bearer {os.getenv('NEON_API_KEY')}",
+            "Authorization": f"Bearer {self.neon_db_api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
@@ -42,10 +49,10 @@ class PostgresDatabaseClient(DatabaseClient):
         """
         Delete a Postgres database from Neon
         """
-        if not os.getenv("NEON_API_KEY"):
+        if not self.neon_db_api_key:
             raise ValueError("NEON_API_KEY environment variable not set")
         headers = {
-            "Authorization": f"Bearer {os.getenv('NEON_API_KEY')}",
+            "Authorization": f"Bearer {self.neon_db_api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
@@ -68,7 +75,7 @@ class PostgresDatabaseClient(DatabaseClient):
         """
         Free up database resources from Neon
         """
-        if not os.getenv("NEON_API_KEY"):
+        if not self.neon_db_api_key:
             raise ValueError("NEON_API_KEY environment variable not set")
         while len(self.get_all_postgres_databases()) >= 10:
             self.delete_postgres_database(self.get_all_postgres_databases()[0])
@@ -78,11 +85,11 @@ class PostgresDatabaseClient(DatabaseClient):
         Create PostgreSQL database using Neon
         Returns connection string
         """
-        if not os.getenv("NEON_API_KEY"):
+        if not self.neon_db_api_key:
             raise ValueError("NEON_API_KEY environment variable not set")
 
         headers = {
-            "Authorization": f"Bearer {os.getenv('NEON_API_KEY')}",
+            "Authorization": f"Bearer {self.neon_db_api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
@@ -120,7 +127,7 @@ class PostgresDatabaseClient(DatabaseClient):
 
 
 class RedisDatabaseClient(DatabaseClient):
-    def __init__(self):
+    def __init__(self, setting: Settings):
         pass
 
     def get_database_connection(self):
@@ -128,20 +135,20 @@ class RedisDatabaseClient(DatabaseClient):
 
 
 class MySQLDatabaseClient(DatabaseClient):
-    def __init__(self):
+    def __init__(self, setting: Settings):
         pass
 
     def get_database_connection(self):
         return os.getenv("MYSQL_URL")
 
 
-def get_database_client(database_type: str) -> DatabaseClient:
+def get_database_client(database_type: str, setting: Settings) -> DatabaseClient:
     if database_type == "postgres":
-        return PostgresDatabaseClient()
+        return PostgresDatabaseClient(setting)
     elif database_type == "redis":
-        return RedisDatabaseClient()
+        return RedisDatabaseClient(setting)
     elif database_type == "mysql":
-        return MySQLDatabaseClient()
+        return MySQLDatabaseClient(setting)
     else:
         raise ValueError(f"Invalid database type: {database_type}")
 
