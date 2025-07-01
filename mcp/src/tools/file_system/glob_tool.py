@@ -1,6 +1,5 @@
 """File pattern matching tool using glob patterns."""
 
-import glob
 from pathlib import Path
 from typing import Annotated, Optional
 from pydantic import Field
@@ -8,12 +7,15 @@ from src.tools.base import BaseTool
 from src.utils.workspace_manager import WorkspaceManager
 
 
+from ..constants import MAX_GLOB_RESULTS
+
 DESCRIPTION = """\
 - Fast file pattern matching tool that works with any codebase size
 - Supports glob patterns like "**/*.js" or "src/**/*.ts"
 - Returns matching file paths sorted by modification time
 - Use this tool when you need to find files by name patterns
-- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead"""
+- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead
+- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful."""
 
 
 def is_path_in_directory(directory: Path, path: Path) -> bool:
@@ -31,12 +33,12 @@ class GlobTool(BaseTool):
     """Tool for finding files using glob patterns."""
     
     name = "Glob"
-    description = """\
-- Fast file pattern matching tool that works with any codebase size
+    description = """- Fast file pattern matching tool that works with any codebase size
 - Supports glob patterns like "**/*.js" or "src/**/*.ts"
 - Returns matching file paths sorted by modification time
 - Use this tool when you need to find files by name patterns
-- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead"""
+- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead
+- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful."""
 
     def __init__(self, workspace_manager: Optional[WorkspaceManager] = None):
         super().__init__()
@@ -97,7 +99,7 @@ class GlobTool(BaseTool):
             result_lines = [f"Found {len(file_matches)} files matching '{pattern}' in {search_dir}:"]
             result_lines.append("")
             
-            for match in file_matches[:100]:  # Limit to first 100 results
+            for match in file_matches[:MAX_GLOB_RESULTS]:  # Limit to first 100 results
                 # Get relative path from search directory for cleaner display
                 try:
                     rel_path = match.relative_to(search_dir)
@@ -106,9 +108,9 @@ class GlobTool(BaseTool):
                     # If relative path fails, use absolute path
                     result_lines.append(str(match))
             
-            if len(file_matches) > 100:
+            if len(file_matches) > MAX_GLOB_RESULTS:
                 result_lines.append("")
-                result_lines.append(f"... and {len(file_matches) - 100} more files (showing first 100)")
+                result_lines.append(f"... and {len(file_matches) - MAX_GLOB_RESULTS} more files (showing first {MAX_GLOB_RESULTS})")
             
             return "\n".join(result_lines)
             

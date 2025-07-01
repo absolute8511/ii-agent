@@ -6,6 +6,7 @@ from typing import Annotated, Optional
 from pydantic import Field
 from src.tools.base import BaseTool
 from src.utils.workspace_manager import WorkspaceManager
+from ..constants import MAX_SEARCH_FILES, BINARY_EXTENSIONS, MAX_MATCHES_PER_FILE, MAX_TOTAL_MATCHES
 
 
 DESCRIPTION = """\
@@ -13,7 +14,7 @@ DESCRIPTION = """\
 - Searches file contents using regular expressions
 - Supports full regex syntax (eg. "log.*Error", "function\\s+\\w+", etc.)
 - Filter files by pattern with the include parameter (eg. "*.js", "*.{ts,tsx}")
-- Returns matching file paths sorted by modification time
+- Returns file paths with at least one match sorted by modification time
 - Use this tool when you need to find files containing specific patterns
 - If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.
 - When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead"""
@@ -101,7 +102,7 @@ class GrepTool(BaseTool):
                 for file_path in search_dir.rglob('*'):
                     if file_path.is_file():
                         # Skip binary files by checking extension
-                        if file_path.suffix.lower() not in {'.exe', '.bin', '.dll', '.so', '.dylib', '.class', '.jar', '.war', '.zip', '.tar', '.gz', '.7z', '.rar', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.mp3', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv'}:
+                        if file_path.suffix.lower() not in BINARY_EXTENSIONS:
                             files_to_search.append(file_path)
             
             if not files_to_search:
@@ -111,7 +112,7 @@ class GrepTool(BaseTool):
             matching_files = []
             matches_found = []
             
-            for file_path in files_to_search[:1000]:  # Limit to 1000 files for performance
+            for file_path in files_to_search[:MAX_SEARCH_FILES]:  # Limit to 1000 files for performance
                 try:
                     # Try to read the file as text
                     content = file_path.read_text(encoding='utf-8', errors='ignore')
@@ -124,7 +125,7 @@ class GrepTool(BaseTool):
                         
                         # Get line numbers for matches
                         lines = content.split('\n')
-                        for match in matches[:10]:  # Limit to first 10 matches per file
+                        for match in matches[:MAX_MATCHES_PER_FILE]:  # Limit to first 10 matches per file
                             # Find which line the match is on
                             match_start = match.start()
                             line_num = content[:match_start].count('\n') + 1
@@ -139,7 +140,7 @@ class GrepTool(BaseTool):
                                     'match': match.group()
                                 })
                         
-                        if len(matches_found) >= 100:  # Limit total matches displayed
+                        if len(matches_found) >= MAX_TOTAL_MATCHES:  # Limit total matches displayed
                             break
                             
                 except (UnicodeDecodeError, PermissionError, OSError):

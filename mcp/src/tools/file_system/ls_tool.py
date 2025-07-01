@@ -8,8 +8,10 @@ from src.tools.base import BaseTool
 from src.utils.workspace_manager import WorkspaceManager
 
 
-MAX_FILES = 1000
-TRUNCATED_MESSAGE = f"There are more than {MAX_FILES} files in the repository. Use the LS tool (passing a specific path), Bash tool, and other tools to explore nested directories. The first {MAX_FILES} files and directories are included below:\n\n"
+from ..constants import MAX_FILES_LS, LS_TRUNCATED_MESSAGE
+
+MAX_FILES = MAX_FILES_LS
+TRUNCATED_MESSAGE = LS_TRUNCATED_MESSAGE
 
 
 def is_path_in_directory(directory: Path, path: Path) -> bool:
