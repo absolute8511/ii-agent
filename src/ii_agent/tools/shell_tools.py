@@ -1,3 +1,5 @@
+import asyncio
+from functools import partial
 from pathlib import Path
 from typing import Any, Optional
 from ii_agent.tools.base import (
@@ -54,8 +56,16 @@ class ShellExecTool(LLMTool):
 
         workspace_exec_dir = str(self.workspace_manager.container_path(Path(exec_dir)))
 
-        result = self.terminal_client.shell_exec(
-            session_id, command, workspace_exec_dir, timeout=30
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(
+                self.terminal_client.shell_exec,
+                session_id,
+                command,
+                workspace_exec_dir,
+                30,  # timeout
+            ),
         )
         if result.success:
             return ToolImplOutput(
@@ -97,7 +107,14 @@ class ShellViewTool(LLMTool):
     ) -> ToolImplOutput:
         session_id = tool_input["session_id"]
 
-        result = self.terminal_client.shell_view(session_id)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(
+                self.terminal_client.shell_view,
+                session_id,
+            ),
+        )
         if result.success:
             return ToolImplOutput(
                 result.output,
@@ -141,8 +158,16 @@ class ShellWaitTool(LLMTool):
     ) -> ToolImplOutput:
         session_id = tool_input["session_id"]
         seconds = tool_input["seconds"]
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(
+                self.terminal_client.shell_wait,
+                session_id,
+                seconds,
+            ),
+        )
 
-        result = self.terminal_client.shell_wait(session_id, seconds)
         if result.success:
             return ToolImplOutput(
                 f"Waited for {seconds} seconds in session {session_id}",
@@ -181,7 +206,14 @@ class ShellKillProcessTool(LLMTool):
         message_history: Optional[MessageHistory] = None,
     ) -> ToolImplOutput:
         session_id = tool_input["session_id"]
-        result = self.terminal_client.shell_kill_process(session_id)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(
+                self.terminal_client.shell_kill_process,
+                session_id,
+            ),
+        )
         if result.success:
             return ToolImplOutput(
                 result.output,
@@ -230,8 +262,15 @@ class ShellWriteToProcessTool(LLMTool):
         session_id = tool_input["session_id"]
         input_text = tool_input["input"]
         press_enter = tool_input["press_enter"]
-        result = self.terminal_client.shell_write_to_process(
-            session_id, input_text, press_enter
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(
+                self.terminal_client.shell_write_to_process,
+                session_id,
+                input_text,
+                press_enter,
+            ),
         )
         if result.success:
             return ToolImplOutput(
