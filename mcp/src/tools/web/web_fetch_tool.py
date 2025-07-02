@@ -33,5 +33,5 @@ class WebFetchTool(BaseTool):
         self,
         url: Annotated[str, Field(description="The URL to fetch content from")],
         prompt: Annotated[str, Field(description="The prompt to run on the fetched content")],
-    ) -> str:
-        return ""
+    ):
+        return

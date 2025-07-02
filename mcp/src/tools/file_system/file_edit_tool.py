@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Annotated, Optional
 from pydantic import Field
 from src.tools.base import BaseTool
-from src.utils.workspace_manager import WorkspaceManager
 
 
 DESCRIPTION = """Performs exact string replacements in files. 
@@ -23,15 +22,11 @@ class FileEditTool(BaseTool):
     name = "Edit"
     description = DESCRIPTION
 
-    def __init__(self, workspace_manager: Optional[WorkspaceManager] = None):
-        super().__init__()
-        self.workspace_manager = workspace_manager
-
     def run_impl(
         self,
         file_path: Annotated[str, Field(description="The absolute path to the file to modify")],
         old_string: Annotated[str, Field(description="The text to replace")],
         new_string: Annotated[str, Field(description="The text to replace it with (must be different from old_string)")],
         replace_all: Annotated[bool, Field(description="Replace all occurences of old_string (default false)", default=False)],
-    ) -> str:
-        return ""
+    ):
+        return

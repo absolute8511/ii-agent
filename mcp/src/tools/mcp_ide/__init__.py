@@ -1,1 +1,0 @@
-"""MCP IDE tools for VS Code integration."""

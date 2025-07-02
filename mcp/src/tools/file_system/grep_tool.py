@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Annotated, Optional
 from pydantic import Field
 from src.tools.base import BaseTool
-from src.utils.workspace_manager import WorkspaceManager
-from ..constants import MAX_SEARCH_FILES, BINARY_EXTENSIONS, MAX_MATCHES_PER_FILE, MAX_TOTAL_MATCHES
 
 
 DESCRIPTION = """
@@ -27,14 +25,10 @@ class GrepTool(BaseTool):
     name = "Grep"
     description = DESCRIPTION
 
-    def __init__(self, workspace_manager: Optional[WorkspaceManager] = None):
-        super().__init__()
-        self.workspace_manager = workspace_manager
-
     def run_impl(
         self,
         pattern: Annotated[str, Field(description="The regular expression pattern to search for in file contents")],
         path: Annotated[Optional[str], Field(description="The directory to search in. Defaults to the current working directory.")],
         include: Annotated[Optional[str], Field(description="File pattern to include in the search (e.g. \"*.js\", \"*.{ts,tsx}\")")],
-    ) -> str:
-        return ""
+    ):
+        return

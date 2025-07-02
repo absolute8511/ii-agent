@@ -29,5 +29,5 @@ class WebSearchTool(BaseTool):
         query: Annotated[str, Field(description="The search query to use")],
         allowed_domains: Annotated[Optional[List[str]], Field(description="Only include search results from these domains")],
         blocked_domains: Annotated[Optional[List[str]], Field(description="Never include search results from these domains")],
-    ) -> str:
-        return ""
+    ):
+        return

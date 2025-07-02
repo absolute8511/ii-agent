@@ -21,5 +21,5 @@ class ExitPlanModeTool(BaseTool):
     def run_impl(
         self,
         plan: Annotated[str, Field(description="The plan you came up with, that you want to run by the user for approval. Supports markdown. The plan should be pretty concise.")],
-    ) -> str:
-        return ""
+    ):
+        return

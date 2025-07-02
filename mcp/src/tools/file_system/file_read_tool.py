@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Annotated, Optional
 from pydantic import Field
 from src.tools.base import BaseTool
-from src.utils.workspace_manager import WorkspaceManager
 
 
 DESCRIPTION = """Reads a file from the local filesystem. You can access any file directly by using this tool.
@@ -28,14 +27,11 @@ class FileReadTool(BaseTool):
     name = "Read"
     description = DESCRIPTION
 
-    def __init__(self, workspace_manager: Optional[WorkspaceManager] = None):
-        super().__init__()
-        self.workspace_manager = workspace_manager
 
     def run_impl(
         self,
         file_path: Annotated[str, Field(description="The absolute path to the file to read")],
         limit: Annotated[Optional[int], Field(description="The number of lines to read. Only provide if the file is too large to read at once.")],
         offset: Annotated[Optional[int], Field(description="The line number to start reading from. Only provide if the file is too large to read at once")],
-    ) -> str:
-        return ""
+    ):
+        return

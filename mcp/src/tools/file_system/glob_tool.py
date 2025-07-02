@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Annotated, Optional
 from pydantic import Field
 from src.tools.base import BaseTool
-from src.utils.workspace_manager import WorkspaceManager
 
 
 DESCRIPTION = """- Fast file pattern matching tool that works with any codebase size
@@ -21,13 +20,9 @@ class GlobTool(BaseTool):
     name = "Glob"
     description = DESCRIPTION
 
-    def __init__(self, workspace_manager: Optional[WorkspaceManager] = None):
-        super().__init__()
-        self.workspace_manager = workspace_manager
-
     def run_impl(
         self,
         pattern: Annotated[str, Field(description="The glob pattern to match files against")],
         path: Annotated[Optional[str], Field(description="The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter \"undefined\" or \"null\" - simply omit it for the default behavior. Must be a valid directory path if provided.")],
-    ) -> str:
-        return ""
+    ):
+        return

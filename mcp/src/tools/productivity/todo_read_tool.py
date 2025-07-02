@@ -24,5 +24,5 @@ class TodoReadTool(BaseTool):
     name = "TodoRead"
     description = DESCRIPTION
 
-    def run_impl(self) -> str:
-        return ""
+    def run_impl(self):
+        return

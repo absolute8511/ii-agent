@@ -69,5 +69,5 @@ class TodoWriteTool(BaseTool):
     def run_impl(
         self,
         todos: Annotated[List[Dict[str, Any]], Field(description="The updated todo list")],
-    ) -> str:
-        return ""
+    ):
+      return

@@ -1,6 +1,6 @@
 """MultiEdit tool for making multiple edits to a single file atomically."""
 
-from typing import Annotated, List, Dict, Any, Optional
+from typing import Annotated, List, Dict, Any
 from pydantic import Field
 from src.tools.base import BaseTool
 
@@ -58,5 +58,5 @@ class MultiEditTool(BaseTool):
         self,
         file_path: Annotated[str, Field(description="The absolute path to the file to modify")],
         edits: Annotated[List[Dict[str, Any]], Field(description="Array of edit operations to perform sequentially on the file")],
-    ) -> str:
-        return ""
+    ):
+        return

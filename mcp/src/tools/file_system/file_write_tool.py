@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Annotated, Optional
 from pydantic import Field
 from src.tools.base import BaseTool
-from src.utils.workspace_manager import WorkspaceManager
 
 
 DESCRIPTION = """Writes a file to the local filesystem.
@@ -23,13 +22,9 @@ class FileWriteTool(BaseTool):
     name = "Write"
     description = DESCRIPTION
 
-    def __init__(self, workspace_manager: Optional[WorkspaceManager] = None):
-        super().__init__()
-        self.workspace_manager = workspace_manager
-
     def run_impl(
         self,
         file_path: Annotated[str, Field(description="The absolute path to the file to write (must be absolute, not relative)")],
         content: Annotated[str, Field(description="The content to write to the file")],
-    ) -> str:
-        return ""
+    ):
+        return

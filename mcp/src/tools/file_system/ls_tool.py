@@ -17,5 +17,5 @@ class LSTool(BaseTool):
         self,
         path: Annotated[str, Field(description="The absolute path to the directory to list (must be absolute, not relative)")],
         ignore: Annotated[Optional[List[str]], Field(description="List of glob patterns to ignore")],
-    ) -> str:
-        return ""
+    ):
+        return

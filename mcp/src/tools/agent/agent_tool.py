@@ -33,6 +33,5 @@ class AgentTool(BaseTool):
         self,
         description: Annotated[str, Field(description="A short (3-5 word) description of the task")],
         prompt: Annotated[str, Field(description="The task for the agent to perform")],
-    ) -> str:
-        """Launch a new agent to handle the specified task."""
-        return ""
+    ):
+        return
