@@ -306,3 +306,52 @@ class AgentToolManager:
             list[LLMTool]: A list of all available tools.
         """
         return self.tools + [self.complete_tool]
+
+    async def run_tool_action(self, action):
+        """
+        Executes a tool action and returns an observation.
+
+        Args:
+            action: The tool action to execute (from events.action)
+
+        Returns:
+            Observation: The result of the tool execution
+        """
+        from ii_agent.events.action import ToolCallAction
+        from ii_agent.events.observation import ToolResultObservation
+        from ii_agent.llm.base import ToolCallParameters
+
+        if not isinstance(action, ToolCallAction):
+            raise ValueError(f"Expected ToolCallAction, got {type(action)}")
+
+        # Convert action to ToolCallParameters for compatibility
+        tool_params = ToolCallParameters(
+            tool_call_id=action.tool_call_id,
+            tool_name=action.tool_name,
+            tool_input=action.tool_input
+        )
+
+        try:
+            # Use existing run_tool method
+            result = await self.run_tool(tool_params, None)  # MessageHistory not needed in new pattern
+            
+            # Convert result to observation
+            return ToolResultObservation(
+                tool_name=action.tool_name,
+                tool_call_id=action.tool_call_id,
+                tool_output=result,
+                content=str(result),
+                success=True,
+                cause=action.id
+            )
+        except Exception as e:
+            self.logger_for_agent_logs.error(f"Tool execution failed: {e}")
+            return ToolResultObservation(
+                tool_name=action.tool_name,
+                tool_call_id=action.tool_call_id,
+                tool_output=None,
+                content=f"Tool execution error: {e}",
+                success=False,
+                error_message=str(e),
+                cause=action.id
+            )
