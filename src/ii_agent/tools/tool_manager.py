@@ -78,7 +78,7 @@ from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
 from ii_agent.utils.constants import TOKEN_BUDGET
 from ii_agent.core.storage.models.settings import Settings
 from ii_agent.utils.sandbox_manager import SandboxManager
-
+from ii_agent.tools.coding_assistant import CodingAssistantTool
 
 def get_system_tools(
     client: LLMClient,
@@ -99,6 +99,7 @@ def get_system_tools(
     logger = logging.getLogger("tool_manager")
 
     tools = []
+    tools.append(CodingAssistantTool(workspace_manager=workspace_manager, llm_client=client))
     if workspace_manager.is_local_workspace():
         tools.extend(
             [
