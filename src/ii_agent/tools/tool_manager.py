@@ -102,7 +102,7 @@ def get_system_tools(
     str_replace_client = StrReplaceClient(settings)
 
     tools = []
-    tools.append(CodingAssistantTool(workspace_manager=workspace_manager, llm_client=client))
+    tools.append(CodingAssistantTool(workspace_manager=workspace_manager, llm_client=client, settings=settings))
     if workspace_manager.is_local_workspace():
         tools.extend(
             [

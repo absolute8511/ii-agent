@@ -23,6 +23,14 @@ RUN pip install -r ii_client/requirements.txt
 
 COPY .templates /app/templates
 
+RUN npm install -g @anthropic-ai/claude-code
+
+RUN pip install claude-code-sdk
+
+RUN mkdir /root/.claude/
+
+COPY claude_code_credentials.json /root/.claude/.credentials.json
+
 RUN curl -fsSL https://bun.sh/install | bash
 
 RUN npm install -g vercel
