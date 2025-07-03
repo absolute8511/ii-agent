@@ -8,7 +8,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from ii_agent.core.config.client_config import ClientConfig
-from ii_agent.llm.base import ToolCall
+from ii_agent.llm.base import ToolCall, TextPrompt
 from ii_agent.agents.base import BaseAgent
 from ii_agent.agents.reviewer import ReviewerAgent
 from ii_agent.core.event import RealtimeEvent, EventType
@@ -91,10 +91,11 @@ class ChatSession:
             )
         except WebSocketDisconnect:
             logger.info("Client disconnected")
-            if self.agent:
-                self.agent.cancel()  # NOTE: Now we cancel the agent on disconnect, the background implementation will come later
+            #if self.agent:
+                #self.agent.cancel()  # NOTE: Now we cancel the agent on disconnect, the background implementation will come later
 
             # Wait for active task to complete before cleanup
+            """
             if self.active_task and not self.active_task.done():
                 try:
                     await self.active_task
@@ -103,7 +104,8 @@ class ChatSession:
                 except Exception as e:
                     logger.error(f"Error waiting for active task completion: {e}")
 
-            self.cleanup()
+            #self.cleanup()
+            """
 
     async def handshake(self):
         """Handle handshake message."""
@@ -176,6 +178,8 @@ class ChatSession:
             user_id = None  # TODO: Support user id
             settings_store = await FileSettingsStore.get_instance(self.config, user_id)
             settings = await settings_store.load()
+            from ii_agent.utils.constants import WorkSpaceMode
+            settings.sandbox_config.mode = WorkSpaceMode.DOCKER
             llm_config = settings.llm_configs.get(init_content.model_name)
             if not llm_config:
                 raise ValueError(
@@ -277,6 +281,11 @@ class ChatSession:
                 session_name = query_content.text.strip()[:100]
                 Sessions.update_session_name(self.session_uuid, session_name)
                 self.first_message = False
+
+            # Check for slash commands
+            if query_content.text.strip().startswith("/"):
+                await self._handle_slash_command(query_content.text.strip())
+                return
 
             # Check if there's an active task for this session
             if self.has_active_task():
@@ -431,6 +440,174 @@ class ChatSession:
                     content={"message": f"Invalid edit_query content: {str(e)}"},
                 )
             )
+
+    async def _handle_slash_command(self, command: str):
+        """Handle slash commands."""
+        try:
+            command_parts = command.split()
+            command_name = command_parts[0].lower()
+            
+            if command_name == "/compact":
+                await self._handle_compact_command()
+            elif command_name == "/help":
+                await self._handle_help_command()
+            else:
+                await self.send_event(
+                    RealtimeEvent(
+                        type=EventType.ERROR,
+                        content={"message": f"Unknown command: {command_name}. Use /help to see available commands."},
+                    )
+                )
+                # Signal completion for unknown command
+                await self.send_event(
+                    RealtimeEvent(
+                        type=EventType.STREAM_COMPLETE,
+                        content={},
+                    )
+                )
+        except Exception as e:
+            await self.send_event(
+                RealtimeEvent(
+                    type=EventType.ERROR,
+                    content={"message": f"Error processing command: {str(e)}"},
+                )
+            )
+            # Signal completion even on error
+            await self.send_event(
+                RealtimeEvent(
+                    type=EventType.STREAM_COMPLETE,
+                    content={},
+                )
+            )
+
+    async def _handle_compact_command(self):
+        """Handle /compact command to summarize conversation history."""
+        try:
+            if not self.agent or not self.agent.history:
+                await self.send_event(
+                    RealtimeEvent(
+                        type=EventType.ERROR,
+                        content={"message": "No conversation history available to compact."},
+                    )
+                )
+                await self.send_event(
+                    RealtimeEvent(
+                        type=EventType.STREAM_COMPLETE,
+                        content={},
+                    )
+                )
+                return
+
+            # Get the full conversation history as message lists
+            message_lists = self.agent.history.get_messages_for_llm()
+            
+            # If history is empty, return early
+            if not message_lists:
+                await self.send_event(
+                    RealtimeEvent(
+                        type=EventType.ERROR,
+                        content={"message": "No conversation history available to compact."},
+                    )
+                )
+                await self.send_event(
+                    RealtimeEvent(
+                        type=EventType.STREAM_COMPLETE,
+                        content={},
+                    )
+                )
+                return
+
+            # Send processing message
+            await self.send_event(
+                RealtimeEvent(
+                    type=EventType.PROCESSING,
+                    content={"message": "Compacting conversation history..."},
+                )
+            )
+
+            # Use the context manager's new method to generate the complete summary
+            summary_response = await asyncio.to_thread(
+                self.agent.history._context_manager.generate_complete_conversation_summary,
+                message_lists
+            )
+            
+            # Format the summary for display
+            compact_summary = f"""## Conversation Summary
+
+{summary_response}
+
+---
+
+*This conversation summary was generated by the /compact command to help preserve context.*
+"""
+
+            # Clear the conversation history and start fresh with the summary
+            self.agent.history.clear()
+            
+            # Add the summary as the new conversation starting point
+            summary_message = f"This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\n\n{summary_response}"
+            self.agent.history.add_user_prompt(summary_message)
+
+            # Send the summary to the client
+            await self.send_event(
+                RealtimeEvent(
+                    type=EventType.SYSTEM,
+                    content={
+                        "message": f"Conversation compacted successfully. History has been summarized and condensed. This is the summarize {compact_summary}",
+                        "summary": compact_summary
+                    },
+                )
+            )
+            
+            # Signal that processing is complete
+            await self.send_event(
+                RealtimeEvent(
+                    type=EventType.AGENT_RESPONSE,
+                    content={},
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Error compacting conversation: {str(e)}")
+            await self.send_event(
+                RealtimeEvent(
+                    type=EventType.ERROR,
+                    content={"message": f"Error compacting conversation: {str(e)}"},
+                )
+            )
+            # Signal completion even on error
+            await self.send_event(
+                RealtimeEvent(
+                    type=EventType.AGENT_RESPONSE,
+                    content={"text": "Conversation compacted successfully"},
+                )
+            )
+
+    async def _handle_help_command(self):
+        """Handle /help command to show available commands."""
+        help_text = """## Available Commands
+
+- `/compact` - Summarize and compress the current conversation history
+- `/help` - Show this help message
+
+### Command Usage
+- `/compact`: Analyzes the entire conversation history and creates a detailed summary, then clears the history and starts fresh with the summary as context. This helps when approaching token limits or when you want to preserve context while starting fresh.
+"""
+        
+        await self.send_event(
+            RealtimeEvent(
+                type=EventType.SYSTEM,
+                content={"message": help_text},
+            )
+        )
+        
+        # Signal that processing is complete
+        await self.send_event(
+            RealtimeEvent(
+                type=EventType.STREAM_COMPLETE,
+                content={},
+            )
+        )
 
     async def _handle_enhance_prompt(self, content: dict):
         """Handle prompt enhancement request."""
