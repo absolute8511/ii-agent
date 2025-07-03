@@ -134,3 +134,6 @@ class ReactTailwindPythonProcessor(BaseProcessor):
             raise Exception(
                 f"Failed to install backend dependencies: {install_result.output}"
             )
+
+    def get_processor_message(self) -> str:
+        return self.project_rule

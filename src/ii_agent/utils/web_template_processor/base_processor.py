@@ -28,6 +28,10 @@ class BaseProcessor(ABC):
     def install_dependencies(self):
         raise NotImplementedError("install_dependencies method not implemented")
 
+    @abstractmethod
+    def get_processor_message(self) -> str:
+        raise NotImplementedError("get_processor_message method not implemented")
+
     @final
     def copy_project_template(self):
         copy_result = self.terminal_client.shell_exec(
@@ -44,9 +48,12 @@ class BaseProcessor(ABC):
         try:
             self.copy_project_template()
             self.install_dependencies()
-            self.system_prompt_builder.update_web_dev_rules(self.project_rule)
+            self.system_prompt_builder.update_web_dev_rules(self.get_project_rule())
         except Exception as e:
             raise Exception(f"Failed to start up project: {e}")
 
+    @final
     def get_project_rule(self) -> str:
+        if self.project_rule is None:
+            raise Exception("Project rule is not set")
         return self.project_rule

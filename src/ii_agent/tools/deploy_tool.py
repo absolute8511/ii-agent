@@ -1,5 +1,7 @@
 """Tool for starting a development server for a project."""
 
+import asyncio
+from functools import partial
 import requests
 import os
 import hashlib
@@ -75,11 +77,16 @@ class DeployTool(LLMTool):
         link_command = (
             f"vercel link  --yes --project {project_id} --token {self.vercel_api_key}"
         )
-        output = self.terminal_client.shell_exec(
-            session_id,
-            link_command,
-            exec_dir=tool_input.get("project_path"),
-            timeout=9999,
+        loop = asyncio.get_event_loop()
+        output = await loop.run_in_executor(
+            None,
+            partial(
+                self.terminal_client.shell_exec,
+                session_id,
+                link_command,
+                exec_dir=tool_input.get("project_path"),
+                timeout=9999,
+            ),
         )
         if output.success:
             print(f"Linked project {project_id} to {tool_input.get('project_path')}")
@@ -94,11 +101,16 @@ class DeployTool(LLMTool):
             for env_var in tool_input.get("env_vars"):
                 deploy_command += f""" --env {env_var["name"]}="{env_var["value"]}" """
 
-        output = self.terminal_client.shell_exec(
-            session_id,
-            deploy_command,
-            exec_dir=tool_input.get("project_path"),
-            timeout=9999,
+        loop = asyncio.get_event_loop()
+        output = await loop.run_in_executor(
+            None,
+            partial(
+                self.terminal_client.shell_exec,
+                session_id,
+                deploy_command,
+                exec_dir=tool_input.get("project_path"),
+                timeout=9999,
+            ),
         )
         if output.success:
             headers = {

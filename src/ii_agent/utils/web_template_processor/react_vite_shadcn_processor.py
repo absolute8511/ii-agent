@@ -72,3 +72,6 @@ class ReactViteShadcnProcessor(BaseProcessor):
         )
         if not install_result.success:
             raise Exception(f"Failed to install dependencies: {install_result.output}")
+
+    def get_processor_message(self) -> str:
+        return self.project_rule

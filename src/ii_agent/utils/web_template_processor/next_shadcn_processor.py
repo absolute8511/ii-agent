@@ -43,7 +43,7 @@ Add components with `cd {project_name} && bunx shadcn@latest add -y -o`. Import 
 Any database operations must be done with Prisma ORM.
 Authentication must be done with NextAuth. Use bcrypt for password hashing.
 Use Chart.js for charts. Moveable for Draggable, Resizable, Scalable, Rotatable, Warpable, Pinchable, Groupable, Snappable components.
-Use AOS for scroll animations.
+Use AOS for scroll animations. React-Player for video player.
 Advance animations must be done with Framer Motion, Anime.js, and React Three Fiber.
 Before writing the frontend integration, you must write an openapi spec for the backend then you must write test for all the expected http requests and responses using supertest (already installed).
 Run the test by running `bun test`. Any backend operations must pass all test before you begin your deployment
@@ -53,8 +53,23 @@ IMPORTANT: All the todo list must be done before you can return to the user.
 
 If you need to use websocket, follow this guide: https://socket.io/how-to/use-with-nextjs
 You must use socket.io and (IMPORTANT) socket.io-client for websocket.
+Socket.io rules:
+"Separate concerns, sanitize data, handle failures gracefully"
+
+    NEVER send objects with circular references or function properties
+    ALWAYS validate data serializability before transmission
+    SEPARATE connection management from business logic storage
+    SANITIZE all data crossing network boundaries
+    CLEANUP resources and event listeners to prevent memory leaks
+    HANDLE network failures, timeouts, and reconnections
+    VALIDATE all incoming data on both client and server
+    TEST with multiple concurrent connections under load
+
+APPLIES TO: Any real-time system (WebSockets, Server-Sent Events, WebRTC, polling)
+
 
 Banned libraries (will break with this template): Quill
+
 """
 
 
@@ -83,3 +98,6 @@ class NextShadcnProcessor(BaseProcessor):
         )
         if not install_result.success:
             raise Exception(f"Failed to install dependencies: {install_result.output}")
+
+    def get_processor_message(self) -> str:
+        return self.project_rule

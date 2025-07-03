@@ -23,7 +23,7 @@ class FullStackInitTool(LLMTool):
             },
             "framework": {
                 "type": "string",
-                "description": "The framework to use for the project. Choose from: nextjs-shadcn, react-vite-shadcn, react-tailwind-python",
+                "description": f"The framework to use for the project. Choose from: {', '.join(WebProcessorRegistry.list_frameworks())}",
             },
         },
         "required": ["project_name", "framework"],
@@ -63,7 +63,7 @@ class FullStackInitTool(LLMTool):
             )
 
         return ToolImplOutput(
-            processor.get_project_rule(),
+            processor.get_processor_message(),
             "Successfully initialized fullstack web application",
             auxiliary_data={"success": True},
         )

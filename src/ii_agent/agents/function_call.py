@@ -7,7 +7,12 @@ from typing import List
 from fastapi import WebSocket
 from ii_agent.agents.base import BaseAgent
 from ii_agent.core.event import EventType, RealtimeEvent
-from ii_agent.llm.base import LLMClient, TextResult, ToolCallParameters
+from ii_agent.llm.base import (
+    LLMClient,
+    TextResult,
+    ToolCallParameters,
+    AnthropicThinkingBlock,
+)
 from ii_agent.llm.message_history import MessageHistory
 from ii_agent.prompts.system_prompt import SystemPromptBuilder
 from ii_agent.tools.base import ToolImplOutput, LLMTool
@@ -254,17 +259,28 @@ try breaking down the task into smaller steps. After call this tool to update or
                 )
 
             text_results = [
-                item for item in model_response if isinstance(item, TextResult)
+                item
+                for item in model_response
+                if isinstance(item, TextResult)
+                or isinstance(item, AnthropicThinkingBlock)
             ]
-            if len(text_results) > 0:
-                text_result = text_results[0]
+            for i in range(len(text_results)):
+                text_result = text_results[i]
+                if isinstance(text_result, AnthropicThinkingBlock):
+                    wrapped_thinking = ""
+                    words = text_result.thinking.split()
+                    for i in range(0, len(words), 8):
+                        wrapped_thinking += " ".join(words[i:i+12]) + "\n"
+                    text = f"```Thinking:\n{wrapped_thinking.strip()}\n```"
+                else:
+                    text = text_result.text
                 self.logger_for_agent_logs.info(
-                    f"Top-level agent planning next step: {text_result.text}\n",
+                    f"Top-level agent planning next step: {text}\n",
                 )
                 self.message_queue.put_nowait(
                     RealtimeEvent(
                         type=EventType.AGENT_THINKING,
-                        content={"text": text_result.text},
+                        content={"text": text},
                     )
                 )
 
