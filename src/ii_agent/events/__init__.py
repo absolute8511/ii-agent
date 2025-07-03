@@ -1,21 +1,18 @@
 """Event system for the II Agent."""
 
-from .event import Event, EventSource
-from .tool import ToolCallMetadata
-from .action import (
+from ii_agent.events.event import Event, EventSource
+from ii_agent.events.tool import ToolCallMetadata
+from ii_agent.events.action import (
     Action, MessageAction, ToolCallAction, CompleteAction, 
-    ActionConfirmationStatus, ActionSecurityRisk
-)
-from .observation import Observation, ToolResultObservation, UserMessageObservation, SystemObservation
-
-# Import fine-grained actions and observations
-from .actions import (
-    FileReadAction, FileWriteAction, FileEditAction, FileEditSource,
+    FileReadAction, FileWriteAction, FileEditAction,
     CmdRunAction, IPythonRunCellAction,
-    BrowseURLAction, BrowseInteractiveAction
+    BrowseURLAction, BrowseInteractiveAction,
+    MCPAction
 )
-from .observations import (
-    FileReadObservation, FileWriteObservation, FileEditObservation
+from ii_agent.events.observation import (
+    Observation, UserMessageObservation, SystemObservation,
+    FileReadObservation, FileWriteObservation, FileEditObservation,
+    MCPObservation
 )
 
 __all__ = [
@@ -29,12 +26,9 @@ __all__ = [
     "MessageAction",
     "ToolCallAction", 
     "CompleteAction",
-    "ActionConfirmationStatus",
-    "ActionSecurityRisk",
     
     # Base observations
     "Observation",
-    "ToolResultObservation",
     "UserMessageObservation", 
     "SystemObservation",
     
@@ -42,7 +36,6 @@ __all__ = [
     "FileReadAction",
     "FileWriteAction",
     "FileEditAction", 
-    "FileEditSource",
     
     # Command actions
     "CmdRunAction",
@@ -52,8 +45,14 @@ __all__ = [
     "BrowseURLAction",
     "BrowseInteractiveAction",
     
+    # MCP actions
+    "MCPAction",
+    
     # Fine-grained observations
     "FileReadObservation",
     "FileWriteObservation",
     "FileEditObservation",
+    
+    # MCP observations
+    "MCPObservation",
 ]

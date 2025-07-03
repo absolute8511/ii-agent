@@ -90,7 +90,7 @@ try breaking down the task into smaller steps. After call this tool to update or
             List of message turns for the LLM
         """
         # Runtime imports
-        from ii_agent.events.observation import UserMessageObservation, ToolResultObservation
+        from ii_agent.events.observation import UserMessageObservation, SystemObservation
         from ii_agent.events.action import MessageAction, ToolCallAction
         from ii_agent.events.event import EventSource
         from ii_agent.llm.base import ToolFormattedResult
@@ -122,14 +122,10 @@ try breaking down the task into smaller steps. After call this tool to update or
                 else:
                     messages.append([tool_call])
                     
-            elif isinstance(event, ToolResultObservation):
-                # Tool result from environment
-                tool_result = ToolFormattedResult(
-                    tool_call_id=event.tool_call_id,
-                    tool_name=event.tool_name,
-                    tool_output=event.content
-                )
-                messages.append([tool_result])
+            elif isinstance(event, SystemObservation):
+                # System observation - convert to text result
+                text_result = TextResult(text=event.content)
+                messages.append([text_result])
 
         return messages
 

@@ -61,6 +61,19 @@ from ii_agent.tools.deep_research_tool import DeepResearchTool
 from ii_agent.tools.list_html_links_tool import ListHtmlLinksTool
 from ii_agent.utils.constants import TOKEN_BUDGET
 from ii_agent.core.storage.models.settings import Settings
+from ii_agent.core.logger import logger
+from ii_agent.events.action import (
+    Action, ToolCallAction, MessageAction, CompleteAction,
+    FileReadAction, FileWriteAction, FileEditAction,
+    CmdRunAction, IPythonRunCellAction,
+    BrowseURLAction, BrowseInteractiveAction
+)
+from ii_agent.events.observation import (
+    UserMessageObservation, SystemObservation, 
+    FileReadObservation, FileWriteObservation, FileEditObservation,
+    CmdOutputObservation, BrowseObservation
+)
+from ii_agent.events.event import EventSource
 
 
 def get_system_tools(
@@ -87,11 +100,9 @@ def get_system_tools(
             ask_user_permission=ask_user_permission, cwd=workspace_manager.root
         )
 
-    logger = logging.getLogger("presentation_context_manager")
     context_manager = LLMSummarizingContextManager(
         client=client,
         token_counter=TokenCounter(),
-        logger=logger,
         token_budget=TOKEN_BUDGET,
     )
 
@@ -208,8 +219,7 @@ class AgentToolManager:
     search capabilities, and task completion functionality.
     """
 
-    def __init__(self, tools: List[LLMTool], logger_for_agent_logs: logging.Logger, interactive_mode: bool = True, reviewer_mode: bool = False):
-        self.logger_for_agent_logs = logger_for_agent_logs
+    def __init__(self, tools: List[LLMTool], interactive_mode: bool = True, reviewer_mode: bool = False):
         if reviewer_mode:
             self.complete_tool = ReturnControlToGeneralAgentTool() if interactive_mode else CompleteToolReviewer()
         else:
@@ -248,8 +258,8 @@ class AgentToolManager:
         llm_tool = self.get_tool(tool_params.tool_name)
         tool_name = tool_params.tool_name
         tool_input = tool_params.tool_input
-        self.logger_for_agent_logs.info(f"Running tool: {tool_name}")
-        self.logger_for_agent_logs.info(f"Tool input: {tool_input}")
+        logger.info(f"Running tool: {tool_name}")
+        logger.info(f"Tool input: {tool_input}")
         result = await llm_tool.run_async(tool_input, history)
 
         tool_input_str = "\n".join([f" - {k}: {v}" for k, v in tool_input.items()])
@@ -264,7 +274,7 @@ class AgentToolManager:
                     result_to_log[i]["source"]["data"] = "[REDACTED]"
             log_message += f"\nTool output: \n{result_to_log}\n\n"
 
-        self.logger_for_agent_logs.info(log_message)
+        logger.info(log_message)
 
         # Handle both ToolResult objects and tuples
         if isinstance(result, tuple):
@@ -307,23 +317,57 @@ class AgentToolManager:
         """
         return self.tools + [self.complete_tool]
 
-    async def run_tool_action(self, action):
+    async def handle_action(self, action):
         """
-        Executes a tool action and returns an observation.
+        Handle different types of actions and return appropriate observations.
+        Similar to OpenHands Runtime._handle_action method.
 
         Args:
-            action: The tool action to execute (from events.action)
+            action: The action to execute (from events.action)
 
         Returns:
-            Observation: The result of the tool execution
+            Observation: The result of the action execution
         """
-        from ii_agent.events.action import ToolCallAction
-        from ii_agent.events.observation import ToolResultObservation
-        from ii_agent.llm.base import ToolCallParameters
+        try:
+            # Handle different action types
+            if isinstance(action, ToolCallAction):
+                return await self._handle_tool_call_action(action)
+            elif isinstance(action, MessageAction):
+                return await self._handle_message_action(action)
+            elif isinstance(action, CompleteAction):
+                return await self._handle_complete_action(action)
+            elif isinstance(action, FileReadAction):
+                return await self._handle_file_read_action(action)
+            elif isinstance(action, FileWriteAction):
+                return await self._handle_file_write_action(action)
+            elif isinstance(action, FileEditAction):
+                return await self._handle_file_edit_action(action)
+            elif isinstance(action, CmdRunAction):
+                return await self._handle_cmd_run_action(action)
+            elif isinstance(action, IPythonRunCellAction):
+                return await self._handle_ipython_action(action)
+            elif isinstance(action, BrowseURLAction):
+                return await self._handle_browse_url_action(action)
+            elif isinstance(action, BrowseInteractiveAction):
+                return await self._handle_browse_interactive_action(action)
+            else:
+                # Unknown action type
+                error_msg = f"Unknown action type: {type(action).__name__}"
+                logger.error(error_msg)
+                return SystemObservation(
+                    content=f"ERROR: {error_msg}",
+                    cause=action.id
+                )
 
-        if not isinstance(action, ToolCallAction):
-            raise ValueError(f"Expected ToolCallAction, got {type(action)}")
+        except Exception as e:
+            logger.error(f"Action execution failed: {e}")
+            return SystemObservation(
+                content=f"ERROR: Action execution error: {e}",
+                cause=action.id
+            )
 
+    async def _handle_tool_call_action(self, action):
+        """Handle ToolCallAction by executing the tool."""
         # Convert action to ToolCallParameters for compatibility
         tool_params = ToolCallParameters(
             tool_call_id=action.tool_call_id,
@@ -345,13 +389,195 @@ class AgentToolManager:
                 cause=action.id
             )
         except Exception as e:
-            self.logger_for_agent_logs.error(f"Tool execution failed: {e}")
-            return ToolResultObservation(
-                tool_name=action.tool_name,
-                tool_call_id=action.tool_call_id,
-                tool_output=None,
+            logger.error(f"Tool execution failed: {e}")
+            return SystemObservation(
                 content=f"Tool execution error: {e}",
-                success=False,
-                error_message=str(e),
+                event_type="tool_error",
                 cause=action.id
             )
+
+    async def _handle_message_action(self, action):
+        """Handle MessageAction by creating a UserMessageObservation."""
+        return UserMessageObservation(
+            content=action.content,
+            cause=action.id
+        )
+
+    async def _handle_complete_action(self, action):
+        """Handle CompleteAction by creating a SystemObservation."""
+        return SystemObservation(
+            content=f"Task completed: {action.final_answer}",
+            cause=action.id
+        )
+
+    async def _handle_file_read_action(self, action):
+        """Handle FileReadAction by delegating to file_read tool."""
+        try:
+            # Find the file read tool and execute it
+            tool_params = {
+                'tool_call_id': getattr(action, 'tool_call_id', ''),
+                'tool_name': 'str_replace_editor',
+                'tool_input': {
+                    'command': 'view',
+                    'path': action.path,
+                    'view_range': [action.start, action.end] if action.end != -1 else None
+                }
+            }
+            
+            tool_call = ToolCallParameters(**tool_params)
+            result = await self.run_tool(tool_call, None)
+            
+            return FileReadObservation(
+                path=action.path,
+                content=str(result),
+                success=True,
+                lines_read=len(str(result).splitlines()) if result else 0,
+                cause=action.id
+            )
+        except Exception as e:
+            logger.error(f"File read failed: {e}")
+            return SystemObservation(
+                content=f"ERROR: File read error: {e}",
+                cause=action.id
+            )
+
+    async def _handle_file_write_action(self, action):
+        """Handle FileWriteAction by delegating to file write tool."""
+        try:
+            # Find the file write tool and execute it
+            tool_params = {
+                'tool_call_id': getattr(action, 'tool_call_id', ''),
+                'tool_name': 'str_replace_editor',
+                'tool_input': {
+                    'command': 'create',
+                    'path': action.path,
+                    'file_text': action.content
+                }
+            }
+            
+            tool_call = ToolCallParameters(**tool_params)
+            result = await self.run_tool(tool_call, None)
+            
+            return FileWriteObservation(
+                path=action.path,
+                content=str(result),
+                success=True,
+                bytes_written=len(action.content.encode('utf-8')) if hasattr(action, 'content') else 0,
+                cause=action.id
+            )
+        except Exception as e:
+            logger.error(f"File write failed: {e}")
+            return SystemObservation(
+                content=f"ERROR: File write error: {e}",
+                cause=action.id
+            )
+
+    async def _handle_file_edit_action(self, action):
+        """Handle FileEditAction by delegating to file edit tool."""
+        try:
+            # Find the file edit tool and execute it
+            tool_params = {
+                'tool_call_id': getattr(action, 'tool_call_id', ''),
+                'tool_name': 'str_replace_editor',
+                'tool_input': {
+                    'command': 'str_replace',
+                    'path': action.path,
+                    'old_str': action.old_str,
+                    'new_str': action.new_str
+                }
+            }
+            
+            tool_call = ToolCallParameters(**tool_params)
+            result = await self.run_tool(tool_call, None)
+            
+            return FileEditObservation(
+                path=action.path,
+                content=str(result),
+                success=True,
+                prev_exist=True,  # Assume file exists for edit
+                cause=action.id
+            )
+        except Exception as e:
+            logger.error(f"File edit failed: {e}")
+            return SystemObservation(
+                content=f"ERROR: File edit error: {e}",
+                cause=action.id
+            )
+
+    async def _handle_cmd_run_action(self, action):
+        """Handle CmdRunAction by delegating to bash tool."""
+        try:
+            # Find the bash tool and execute it
+            tool_params = {
+                'tool_call_id': getattr(action, 'tool_call_id', ''),
+                'tool_name': 'bash',
+                'tool_input': {
+                    'command': action.command
+                }
+            }
+            
+            tool_call = ToolCallParameters(**tool_params)
+            result = await self.run_tool(tool_call, None)
+            
+            return CmdOutputObservation(
+                command=action.command,
+                content=str(result),
+                exit_code=0,  # Assume success if no exception
+                cause=action.id
+            )
+        except Exception as e:
+            logger.error(f"Command execution failed: {e}")
+            return SystemObservation(
+                content=f"ERROR: Command execution error: {e}",
+                cause=action.id
+            )
+
+    async def _handle_ipython_action(self, action):
+        """Handle IPythonRunCellAction - not implemented yet."""
+        return SystemObservation(
+            content="ERROR: IPython execution not yet implemented in tool manager",
+            cause=action.id
+        )
+
+    async def _handle_browse_url_action(self, action):
+        """Handle BrowseURLAction by delegating to browser tool."""
+        try:
+            # Find the browser tool and execute it
+            tool_params = {
+                'tool_call_id': getattr(action, 'tool_call_id', ''),
+                'tool_name': 'visit_webpage',
+                'tool_input': {
+                    'url': action.url
+                }
+            }
+            
+            tool_call = ToolCallParameters(**tool_params)
+            result = await self.run_tool(tool_call, None)
+            
+            return BrowseObservation(
+                url=action.url,
+                content=str(result),
+                success=True,
+                cause=action.id
+            )
+        except Exception as e:
+            logger.error(f"Browse URL failed: {e}")
+            return SystemObservation(
+                content=f"ERROR: Browse URL error: {e}",
+                cause=action.id
+            )
+
+    async def _handle_browse_interactive_action(self, action):
+        """Handle BrowseInteractiveAction - delegate to browser tools."""
+        return SystemObservation(
+            content="ERROR: Interactive browsing not yet fully implemented in tool manager",
+            cause=action.id
+        )
+
+    # Legacy method for backward compatibility
+    async def run_tool_action(self, action):
+        """
+        Legacy method for backward compatibility.
+        Use handle_action instead.
+        """
+        return await self.handle_action(action)

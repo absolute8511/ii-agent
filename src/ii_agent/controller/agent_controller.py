@@ -14,10 +14,11 @@ from ii_agent.tools import AgentToolManager
 from ii_agent.utils.workspace_manager import WorkspaceManager
 from ii_agent.utils.constants import COMPLETE_MESSAGE
 from ii_agent.db.manager import Events
+from ii_agent.core.logger import logger
 
 from .state import State, AgentState
 from ..events.action import Action, MessageAction, ToolCallAction, CompleteAction
-from ..events.observation import Observation, ToolResultObservation, UserMessageObservation, SystemObservation
+from ..events.observation import Observation, UserMessageObservation, SystemObservation
 from ..events.event import EventSource
 
 
@@ -40,7 +41,6 @@ class AgentController:
         tool_manager: AgentToolManager,
         workspace_manager: WorkspaceManager,
         message_queue: asyncio.Queue,
-        logger_for_agent_logs: logging.Logger,
         max_turns: int = 200,
         websocket: Optional[WebSocket] = None,
         session_id: Optional[uuid.UUID] = None,
@@ -54,7 +54,6 @@ class AgentController:
             tool_manager: Tool manager for executing actions
             workspace_manager: Workspace manager
             message_queue: Message queue for real-time communication
-            logger_for_agent_logs: Logger for agent logs
             max_turns: Maximum number of turns
             websocket: Optional WebSocket for real-time communication
             session_id: UUID of the session this controller belongs to
@@ -64,7 +63,6 @@ class AgentController:
         self.agent = agent
         self.tool_manager = tool_manager
         self.workspace_manager = workspace_manager
-        self.logger_for_agent_logs = logger_for_agent_logs
         self.max_turns = max_turns
         self.message_queue = message_queue
         self.websocket = websocket
@@ -89,7 +87,7 @@ class AgentController:
                     if self.session_id is not None:
                         Events.save_event(self.session_id, message)
                     else:
-                        self.logger_for_agent_logs.info(
+                        logger.info(
                             f"No session ID, skipping event: {message}"
                         )
 
@@ -101,7 +99,7 @@ class AgentController:
                         try:
                             await self.websocket.send_json(message.model_dump())
                         except Exception as e:
-                            self.logger_for_agent_logs.warning(
+                            logger.warning(
                                 f"Failed to send message to websocket: {str(e)}"
                             )
                             self.websocket = None
@@ -110,13 +108,13 @@ class AgentController:
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    self.logger_for_agent_logs.error(
+                    logger.error(
                         f"Error processing WebSocket message: {str(e)}"
                     )
         except asyncio.CancelledError:
-            self.logger_for_agent_logs.info("Message processor stopped")
+            logger.info("Message processor stopped")
         except Exception as e:
-            self.logger_for_agent_logs.error(f"Error in message processor: {str(e)}")
+            logger.error(f"Error in message processor: {str(e)}")
 
     def start_message_processing(self):
         """Start processing the message queue."""
@@ -133,7 +131,7 @@ class AgentController:
             ToolImplOutput: The result of the execution
         """
         user_input_delimiter = "-" * 45 + " USER INPUT " + "-" * 45 + "\n" + instruction
-        self.logger_for_agent_logs.info(f"\n{user_input_delimiter}\n")
+        logger.info(f"\n{user_input_delimiter}\n")
 
         # Add initial user message as observation
         user_observation = UserMessageObservation(
@@ -149,7 +147,7 @@ class AgentController:
             remaining_turns -= 1
 
             delimiter = "-" * 45 + " NEW TURN " + "-" * 45
-            self.logger_for_agent_logs.info(f"\n{delimiter}\n")
+            logger.info(f"\n{delimiter}\n")
 
             if self.interrupted:
                 # Handle interruption
@@ -169,7 +167,7 @@ class AgentController:
                 action = self.agent.step(self.state)
                 self.state.add_event(action)
             except Exception as e:
-                self.logger_for_agent_logs.error(f"Agent step failed: {e}")
+                logger.error(f"Agent step failed: {e}")
                 self.state.agent_state = AgentState.ERROR
                 return ToolImplOutput(
                     tool_output=f"Agent error: {e}",
@@ -217,11 +215,9 @@ class AgentController:
 
                 if self.interrupted:
                     # Handle interruption during tool execution
-                    tool_obs = ToolResultObservation(
-                        tool_name=action.tool_name,
-                        tool_call_id=action.tool_call_id,
+                    tool_obs = SystemObservation(
                         content=TOOL_RESULT_INTERRUPT_MESSAGE,
-                        success=False,
+                        event_type="tool_interrupted",
                         cause=action.id
                     )
                     self.state.add_event(tool_obs)
@@ -244,13 +240,10 @@ class AgentController:
                         )
                         
                 except Exception as e:
-                    self.logger_for_agent_logs.error(f"Tool execution failed: {e}")
-                    error_obs = ToolResultObservation(
-                        tool_name=action.tool_name,
-                        tool_call_id=action.tool_call_id,
+                    logger.error(f"Tool execution failed: {e}")
+                    error_obs = SystemObservation(
                         content=f"Tool execution error: {e}",
-                        success=False,
-                        error_message=str(e),
+                        event_type="tool_error",
                         cause=action.id
                     )
                     self.state.add_event(error_obs)
@@ -268,7 +261,7 @@ class AgentController:
     def cancel(self):
         """Cancel the agent execution."""
         self.interrupted = True
-        self.logger_for_agent_logs.info("Agent cancellation requested")
+        logger.info("Agent cancellation requested")
 
     def handle_edit_query(self):
         """Handle edit query by canceling execution and clearing history from last user message."""
@@ -276,7 +269,7 @@ class AgentController:
         self.cancel()
         # Clear history from last user message
         self.agent.history.clear_from_last_to_user_message()
-        self.logger_for_agent_logs.info("Agent edit query handled: cancelled and cleared history")
+        logger.info("Agent edit query handled: cancelled and cleared history")
 
     def clear(self):
         """Clear the state and reset interruption state."""

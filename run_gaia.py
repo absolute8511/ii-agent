@@ -339,7 +339,6 @@ async def answer_single_question(
         tools=[],  # No tools - agent only converts state to action
         workspace_manager=workspace_manager,
         message_queue=message_queue,
-        logger_for_agent_logs=logger,
         init_history=init_history,
         max_output_tokens_per_turn=32768,
         max_turns=200,
@@ -353,7 +352,6 @@ async def answer_single_question(
         tool_manager=tool_manager,
         workspace_manager=workspace_manager,
         message_queue=message_queue,
-        logger_for_agent_logs=logger,
         max_turns=200,
         session_id=session_id,
         interactive_mode=False,  # Run until the task is completed
@@ -463,7 +461,6 @@ def main():
     context_manager = LLMSummarizingContextManager(
         client=client,
         token_counter=token_counter,
-        logger=logger,
         token_budget=TOKEN_BUDGET,
     )
 

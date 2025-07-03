@@ -40,8 +40,7 @@ from ii_agent.prompts.system_prompt import (
     SYSTEM_PROMPT_WITH_SEQ_THINKING,
 )
 from ii_agent.prompts.reviewer_system_prompt import REVIEWER_SYSTEM_PROMPT
-
-logger = logging.getLogger(__name__)
+from ii_agent.core.logger import logger
 
 
 class ChatSession:
@@ -653,17 +652,6 @@ Please review this feedback and implement the suggested improvements to better c
         """
         device_id = websocket.query_params.get("device_id")
 
-        # Setup logging
-        logger_for_agent_logs = logging.getLogger(f"agent_logs_{id(websocket)}")
-        logger_for_agent_logs.setLevel(logging.DEBUG)
-        logger_for_agent_logs.propagate = False
-
-        # Ensure we don't duplicate handlers
-        if not logger_for_agent_logs.handlers:
-            logger_for_agent_logs.addHandler(logging.FileHandler(self.config.logs_path))
-            if not self.config.minimize_stdout_logs:
-                logger_for_agent_logs.addHandler(logging.StreamHandler())
-
         # Check and create database session
         existing_session = Sessions.get_session_by_id(session_id)
         if existing_session:
@@ -686,37 +674,9 @@ Please review this feedback and implement the suggested improvements to better c
         context_manager = LLMSummarizingContextManager(
             client=client,
             token_counter=token_counter,
-            logger=logger,
             token_budget=self.config.token_budget,
         )
 
-        # Create agent
-        return self._create_controller(
-            client,
-            workspace_manager,
-            websocket,
-            session_id,
-            tool_args,
-            context_manager,
-            logger_for_agent_logs,
-            file_store,
-            settings,
-        )
-
-    def _create_controller(
-        self,
-        client: LLMClient,
-        workspace_manager: WorkspaceManager,
-        websocket: WebSocket,
-        session_id: uuid.UUID,
-        tool_args: Dict[str, Any],
-        context_manager,
-        logger: logging.Logger,
-        file_store: FileStore,
-        settings: Settings,
-    ):
-        """Create the actual agent instance."""
-        # Initialize agent queue and tool manager
         queue = asyncio.Queue()
         tool_manager = get_system_tools(
             client=client,
@@ -747,21 +707,19 @@ Please review this feedback and implement the suggested improvements to better c
             temperature=0.0,
         )
 
-        # Create thin FunctionCallAgent (converts state to action, needs to know available tools)
-        thin_agent = FunctionCallAgent(
+        # Create agent
+        agent = FunctionCallAgent(
             llm=client,
             config=agent_config,
             system_prompt=system_prompt,
-            available_tools=available_tool_params,  # Agent needs to know what actions it can perform
+            available_tools=available_tool_params,
         )
 
-        # Create AgentController to orchestrate execution
         controller = AgentController(
-            agent=thin_agent,
+            agent=agent,
             tool_manager=tool_manager,
             workspace_manager=workspace_manager,
             message_queue=queue,
-            logger_for_agent_logs=logger,
             max_turns=self.config.max_turns,
             websocket=websocket,
             session_id=session_id,
@@ -769,8 +727,6 @@ Please review this feedback and implement the suggested improvements to better c
             initial_state=initial_state,
         )
 
-        # Store the session ID for event tracking
-        controller.session_id = session_id
         return controller
 
     def _create_reviewer_agent(
@@ -796,23 +752,11 @@ Please review this feedback and implement the suggested improvements to better c
         Returns:
             Configured reviewer controller instance
         """
-        # Setup logging
-        logger_for_agent_logs = logging.getLogger(f"reviewer_logs_{id(websocket)}")
-        logger_for_agent_logs.setLevel(logging.DEBUG)
-        logger_for_agent_logs.propagate = False
-
-        # Ensure we don't duplicate handlers
-        if not logger_for_agent_logs.handlers:
-            logger_for_agent_logs.addHandler(logging.FileHandler(self.config.logs_path))
-            if not self.config.minimize_stdout_logs:
-                logger_for_agent_logs.addHandler(logging.StreamHandler())
-
         # Create context manager
         token_counter = TokenCounter()
         context_manager = LLMSummarizingContextManager(
             client=client,
             token_counter=token_counter,
-            logger=logger_for_agent_logs,
             token_budget=self.config.token_budget,
         )
 
@@ -833,7 +777,6 @@ Please review this feedback and implement the suggested improvements to better c
             client=client,
             workspace_manager=workspace_manager,
             message_queue=queue,
-            logger_for_agent_logs=logger_for_agent_logs,
             context_manager=context_manager,
             max_output_tokens_per_turn=self.config.max_output_tokens_per_turn,
             max_turns=self.config.max_turns,
@@ -847,7 +790,6 @@ Please review this feedback and implement the suggested improvements to better c
             tool_manager=tool_manager,
             workspace_manager=workspace_manager,
             message_queue=queue,
-            logger_for_agent_logs=logger_for_agent_logs,
             max_turns=self.config.max_turns,
             websocket=websocket,
             session_id=session_id,

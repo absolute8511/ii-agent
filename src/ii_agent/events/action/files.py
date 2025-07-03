@@ -1,19 +1,10 @@
 """File operation actions for ii-agent."""
 
 from dataclasses import dataclass
-from enum import Enum
 from typing import ClassVar, Optional
 
-from ...core.schema import ActionType
-from ..action import Action, ActionSecurityRisk
-from ..event import EventSource
-
-
-class FileEditSource(str, Enum):
-    """Source/mode for file editing operations."""
-    LLM_BASED_EDIT = "llm_based_edit"
-    STR_REPLACE = "str_replace"  # String replacement mode
-    DEFAULT = "default"
+from ii_agent.core.schema import ActionType, SecurityRisk, FileEditSource, FileReadSource
+from ii_agent.events.action.action import Action
 
 
 @dataclass
@@ -28,8 +19,11 @@ class FileReadAction(Action):
     start: int = 0
     end: int = -1
     thought: str = ""
+    action: str = ActionType.READ
     runnable: ClassVar[bool] = True
-    security_risk: Optional[ActionSecurityRisk] = ActionSecurityRisk.LOW
+    security_risk: Optional[SecurityRisk] = SecurityRisk.LOW
+    impl_source: FileReadSource = FileReadSource.DEFAULT
+    view_range: Optional[list[int]] = None  # For OpenHands compatibility
     
     @property 
     def message(self) -> str:
@@ -61,8 +55,9 @@ class FileWriteAction(Action):
     start: int = 0
     end: int = -1
     thought: str = ""
+    action: str = ActionType.WRITE
     runnable: ClassVar[bool] = True
-    security_risk: Optional[ActionSecurityRisk] = ActionSecurityRisk.MEDIUM
+    security_risk: Optional[SecurityRisk] = SecurityRisk.MEDIUM
     
     @property
     def message(self) -> str:
@@ -83,40 +78,45 @@ class FileEditAction(Action):
     """Edits a file using various commands including view, create, str_replace, and insert.
     
     This class supports multiple modes of operation:
-    1. String replacement mode (str_replace)
+    1. OpenHands ACI mode (command-based)
     2. LLM-based content editing 
-    3. Line insertion
-    4. File creation
     
     Attributes:
         path (str): The path to the file being edited.
-        command (str): The editing command ('view', 'create', 'str_replace', 'insert').
+        
+        # OpenHands ACI mode
+        command (str): The editing command ('view', 'create', 'str_replace', 'insert', 'undo_edit').
+        file_text (str): Content for file creation.
         old_str (str): The string to be replaced (str_replace mode).
         new_str (str): The replacement string (str_replace/insert modes).
         insert_line (int): Line number for insertion (insert mode).
-        content (str): Full content for create/write operations.
+        
+        # LLM-based editing mode
+        content (str): Full content for LLM-based editing.
         start (int): Starting line for LLM-based editing (1-indexed).
         end (int): Ending line for LLM-based editing (1-indexed).
     """
     
     path: str = ""
-    command: str = "str_replace"  # Default to str_replace mode
     
-    # String replacement mode
+    # OpenHands ACI arguments
+    command: str = ""
+    file_text: Optional[str] = None
     old_str: Optional[str] = None
     new_str: Optional[str] = None
     insert_line: Optional[int] = None
     
-    # Content-based editing
+    # LLM-based editing arguments  
     content: str = ""
     start: int = 1
     end: int = -1
     
-    # Metadata
+    # Shared arguments
     thought: str = ""
+    action: str = ActionType.EDIT
     runnable: ClassVar[bool] = True
-    security_risk: Optional[ActionSecurityRisk] = ActionSecurityRisk.MEDIUM
-    impl_source: FileEditSource = FileEditSource.STR_REPLACE
+    security_risk: Optional[SecurityRisk] = SecurityRisk.MEDIUM
+    impl_source: FileEditSource = FileEditSource.OH_ACI
     
     @property
     def message(self) -> str:
@@ -131,21 +131,23 @@ class FileEditAction(Action):
     
     def __str__(self) -> str:
         ret = "**FileEditAction**\n"
-        ret += f"PATH: {self.path}\n"
-        if self.thought:
-            ret += f"THOUGHT: {self.thought}\n"
-        ret += f"COMMAND: {self.command}\n"
+        ret += f"PATH: [{self.path}]\n"
+        ret += f"THOUGHT: {self.thought}\n"
         
-        if self.command == "create":
-            ret += f"CONTENT:\n```\n{self.content}\n```"
-        elif self.command == "str_replace":
-            ret += f"OLD_STR:\n```\n{self.old_str}\n```\n"
-            ret += f"NEW_STR:\n```\n{self.new_str}\n```"
-        elif self.command == "insert":
-            ret += f"INSERT_LINE: {self.insert_line}\n"
-            ret += f"NEW_STR:\n```\n{self.new_str}\n```"
-        elif self.impl_source == FileEditSource.LLM_BASED_EDIT:
+        if self.impl_source == FileEditSource.LLM_BASED_EDIT:
             ret += f"RANGE: [L{self.start}:L{self.end}]\n"
-            ret += f"CONTENT:\n```\n{self.content}\n```"
+            ret += f"CONTENT:\n```\n{self.content}\n```\n"
+        else:  # OH_ACI mode
+            ret += f"COMMAND: {self.command}\n"
+            if self.command == "create":
+                ret += f"Created File with Text:\n```\n{self.file_text}\n```\n"
+            elif self.command == "str_replace":
+                ret += f"Old String: ```\n{self.old_str}\n```\n"
+                ret += f"New String: ```\n{self.new_str}\n```\n"
+            elif self.command == "insert":
+                ret += f"Insert Line: {self.insert_line}\n"
+                ret += f"New String: ```\n{self.new_str}\n```\n"
+            elif self.command == "undo_edit":
+                ret += "Undo Edit\n"
         
         return ret

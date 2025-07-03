@@ -16,7 +16,7 @@ from ii_agent.llm.base import (
     AnthropicThinkingBlock,
 )
 from ii_agent.utils.constants import TOKEN_BUDGET
-
+from ii_agent.core.logger import logger
 
 class ContextManager(ABC):
     """Abstract base class for context management strategies."""
@@ -24,11 +24,9 @@ class ContextManager(ABC):
     def __init__(
         self,
         token_counter: TokenCounter,
-        logger: logging.Logger,
         token_budget: int = TOKEN_BUDGET,
     ):
         self.token_counter = token_counter
-        self.logger = logger
         self._token_budget = token_budget
 
     @property
@@ -54,7 +52,7 @@ class ContextManager(ABC):
                         input_str = json.dumps(message.tool_input)
                         total_tokens += self.token_counter.count_tokens(input_str)
                     except TypeError:
-                        self.logger.warning(
+                        logger.warning(
                             f"Could not serialize tool input for token counting: {message.tool_input}"
                         )
                         total_tokens += 100  # Add arbitrary penalty
@@ -72,7 +70,7 @@ class ContextManager(ABC):
                             message.thinking
                         )
                 else:
-                    self.logger.warning(
+                    logger.warning(
                         f"Unhandled message type for token counting: {type(message)}"
                     )
         return total_tokens
@@ -89,13 +87,13 @@ class ContextManager(ABC):
             return message_lists
 
         current_tokens = self.count_tokens(message_lists)
-        self.logger.warning(
+        logger.warning(
             f"Token count {current_tokens}."
         )
         truncated_message_lists = self.apply_truncation(message_lists)
         new_token_count = self.count_tokens(truncated_message_lists)
         tokens_saved = current_tokens - new_token_count
-        self.logger.info(
+        logger.info(
             f"Truncation saved ~{tokens_saved} tokens. New count: {new_token_count}"
         )
         return truncated_message_lists

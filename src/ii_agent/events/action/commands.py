@@ -3,25 +3,25 @@
 from dataclasses import dataclass
 from typing import ClassVar, Optional
 
-from ...core.schema import ActionType
-from ..action import Action, ActionConfirmationStatus, ActionSecurityRisk
+from ii_agent.core.schema import ActionType, ConfirmationStatus, SecurityRisk
+from ii_agent.events.action.action import Action
 
 
 @dataclass
 class CmdRunAction(Action):
     """Runs a shell command in the environment."""
     
-    command: str = ""
+    command: str = ""  # When empty, prints current tmux window
     is_input: bool = False  # if True, the command is input to a running process
     thought: str = ""
     blocking: bool = False  # if True, run in blocking manner with timeout
     is_static: bool = False  # if True, run in separate process
     cwd: Optional[str] = None  # working directory (only for static commands)
     hidden: bool = False  # if True, hide from logs/UI
-    timeout: Optional[int] = None  # timeout in seconds
+    action: str = ActionType.RUN
     runnable: ClassVar[bool] = True
-    confirmation_state: ActionConfirmationStatus = ActionConfirmationStatus.CONFIRMED
-    security_risk: Optional[ActionSecurityRisk] = ActionSecurityRisk.MEDIUM
+    confirmation_state: ConfirmationStatus = ConfirmationStatus.CONFIRMED
+    security_risk: Optional[SecurityRisk] = SecurityRisk.MEDIUM
     
     @property
     def message(self) -> str:
@@ -31,7 +31,7 @@ class CmdRunAction(Action):
             return f"Running command: {self.command}"
     
     def __str__(self) -> str:
-        ret = f"**CmdRunAction (is_input={self.is_input})**\n"
+        ret = f"**CmdRunAction (source={self.source}, is_input={self.is_input})**\n"
         if self.thought:
             ret += f"THOUGHT: {self.thought}\n"
         if self.cwd:
@@ -48,13 +48,14 @@ class IPythonRunCellAction(Action):
     thought: str = ""
     include_extra: bool = True  # include CWD & Python interpreter info
     kernel_init_code: str = ""  # code to run if kernel restarts
+    action: str = ActionType.RUN_IPYTHON
     runnable: ClassVar[bool] = True
-    confirmation_state: ActionConfirmationStatus = ActionConfirmationStatus.CONFIRMED
-    security_risk: Optional[ActionSecurityRisk] = ActionSecurityRisk.MEDIUM
+    confirmation_state: ConfirmationStatus = ConfirmationStatus.CONFIRMED
+    security_risk: Optional[SecurityRisk] = SecurityRisk.MEDIUM
     
     @property
     def message(self) -> str:
-        return f"Running Python code: {self.code[:50]}{'...' if len(self.code) > 50 else ''}"
+        return f"Running Python code interactively: {self.code}"
     
     def __str__(self) -> str:
         ret = "**IPythonRunCellAction**\n"

@@ -5,15 +5,13 @@ from typing import List, Dict, Optional, Generator
 from ii_agent.core.message import Message, TextContent, ImageContent, ToolCall
 from ii_agent.events.event import Event, EventSource
 from ii_agent.events.action import (
-    Action, MessageAction, ToolCallAction, CompleteAction
+    Action, MessageAction, ToolCallAction, CompleteAction,
+    FileReadAction, FileWriteAction, FileEditAction,
+    CmdRunAction, IPythonRunCellAction,
+    BrowseURLAction, BrowseInteractiveAction
 )
-from ii_agent.events.actions.files import FileReadAction, FileWriteAction, FileEditAction
-from ii_agent.events.actions.commands import CmdRunAction, IPythonRunCellAction
-from ii_agent.events.actions.browse import BrowseURLAction, BrowseInteractiveAction
 from ii_agent.events.observation import (
-    Observation, ToolResultObservation, UserMessageObservation, SystemObservation
-)
-from ii_agent.events.observations.files import (
+    Observation, UserMessageObservation, SystemObservation,
     FileReadObservation, FileWriteObservation, FileEditObservation
 )
 
@@ -268,11 +266,8 @@ class ConversationMemory:
         """Get text content for an observation."""
         if isinstance(observation, UserMessageObservation):
             return observation.message
-        elif isinstance(observation, ToolResultObservation):
-            if observation.success:
-                return observation.content
-            else:
-                return f"Error: {observation.error_message or observation.content}"
+        elif isinstance(observation, SystemObservation):
+            return observation.content
         elif isinstance(observation, (
             FileReadObservation, FileWriteObservation, FileEditObservation
         )):

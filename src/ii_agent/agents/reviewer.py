@@ -20,6 +20,7 @@ from ii_agent.db.manager import Events
 from ii_agent.controller.state import State, AgentState
 from ii_agent.events.action import Action, MessageAction, ToolCallAction, CompleteAction
 from ii_agent.events.event import EventSource
+from ii_agent.core.logger import logger
 
 
 class ReviewerAgent(BaseAgent):
@@ -41,7 +42,6 @@ Focuses on analyzing agent work and determining next review steps.
         client: LLMClient,
         workspace_manager: WorkspaceManager,
         message_queue: asyncio.Queue,
-        logger_for_agent_logs: logging.Logger,
         context_manager: ContextManager,
         max_output_tokens_per_turn: int = 8192,
         max_turns: int = 200,
@@ -53,7 +53,6 @@ Focuses on analyzing agent work and determining next review steps.
         self.workspace_manager = workspace_manager
         self.system_prompt = system_prompt
         self.client = client
-        self.logger_for_agent_logs = logger_for_agent_logs
         self.max_output_tokens = max_output_tokens_per_turn
         self.max_turns = max_turns
         self.history = MessageHistory(context_manager)
@@ -101,7 +100,7 @@ Focuses on analyzing agent work and determining next review steps.
             return self._parse_response_to_action(model_response)
             
         except Exception as e:
-            self.logger_for_agent_logs.error(f"Error in reviewer step: {e}")
+            logger.error(f"Error in reviewer step: {e}")
             return MessageAction(content=f"Error determining next action: {e}")
     
     def _parse_response_to_action(self, model_response: List[Any]) -> Action:
@@ -151,7 +150,7 @@ Focuses on analyzing agent work and determining next review steps.
 
     def cancel(self):
         """Cancel the reviewer execution."""
-        self.logger_for_agent_logs.info("Reviewer cancellation requested")
+        logger.info("Reviewer cancellation requested")
 
     def clear(self):
         """Clear the dialog history."""
@@ -174,7 +173,6 @@ class ReviewerController:
         tool_manager: AgentToolManager,
         workspace_manager: WorkspaceManager,
         message_queue: asyncio.Queue,
-        logger_for_agent_logs: logging.Logger,
         max_turns: int = 200,
         websocket: Optional[WebSocket] = None,
         session_id: Optional[uuid.UUID] = None,
@@ -184,7 +182,6 @@ class ReviewerController:
         self.tool_manager = tool_manager
         self.workspace_manager = workspace_manager
         self.message_queue = message_queue
-        self.logger_for_agent_logs = logger_for_agent_logs
         self.max_turns = max_turns
         self.websocket = websocket
         self.session_id = session_id
@@ -246,7 +243,7 @@ Please conduct a thorough review of the general agent's work and provide detaile
             remaining_turns -= 1
             
             delimiter = "-" * 45 + " REVIEWER TURN " + "-" * 45
-            self.logger_for_agent_logs.info(f"\n{delimiter}\n")
+            logger.info(f"\n{delimiter}\n")
 
             try:
                 # Get next action from thin reviewer agent
@@ -255,7 +252,7 @@ Please conduct a thorough review of the general agent's work and provide detaile
                 # Handle different action types
                 if isinstance(action, CompleteAction):
                     # Review is complete
-                    self.logger_for_agent_logs.info("Review completed")
+                    logger.info("Review completed")
                     return action.final_answer
                 
                 elif isinstance(action, ToolCallAction):
@@ -275,10 +272,10 @@ Please conduct a thorough review of the general agent's work and provide detaile
                 
                 elif isinstance(action, MessageAction):
                     # Log the reviewer's thoughts
-                    self.logger_for_agent_logs.info(f"Reviewer analysis: {action.content}")
+                    logger.info(f"Reviewer analysis: {action.content}")
                     
             except Exception as e:
-                self.logger_for_agent_logs.error(f"Error in review turn: {e}")
+                logger.error(f"Error in review turn: {e}")
                 return f"Review failed due to error: {e}"
 
         # Review did not complete within turn limit
@@ -304,7 +301,7 @@ Please conduct a thorough review of the general agent's work and provide detaile
             
         except Exception as e:
             error_msg = f"Tool execution failed: {e}"
-            self.logger_for_agent_logs.error(error_msg)
+            logger.error(error_msg)
             return error_msg
 
     def run_agent(
@@ -339,7 +336,7 @@ Please conduct a thorough review of the general agent's work and provide detaile
         """Cancel the review execution."""
         self.interrupted = True
         self.reviewer_agent.cancel()
-        self.logger_for_agent_logs.info("Review cancellation requested")
+        logger.info("Review cancellation requested")
 
     @property
     def agent(self):

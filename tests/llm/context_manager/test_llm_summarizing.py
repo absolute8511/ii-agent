@@ -13,7 +13,6 @@ from ii_agent.llm.token_counter import TokenCounter
 
 
 def test_llm_summarizing_context_manager():
-    mock_logger = Mock(spec=logging.Logger)
     mock_llm_client = Mock(spec=LLMClient)
 
     # Mock the generate method to return a summary response
@@ -26,7 +25,6 @@ def test_llm_summarizing_context_manager():
     context_manager = LLMSummarizingContextManager(
         client=mock_llm_client,
         token_counter=token_counter,
-        logger=mock_logger,
         token_budget=1000,
         max_size=10,
     )
@@ -80,7 +78,6 @@ def test_llm_calls_during_summarization():
             )
         ], None
 
-    mock_logger = Mock(spec=logging.Logger)
     mock_llm_client = Mock(spec=LLMClient)
     mock_llm_client.generate.side_effect = spy_generate
     token_counter = TokenCounter()
@@ -88,7 +85,6 @@ def test_llm_calls_during_summarization():
     context_manager = LLMSummarizingContextManager(
         client=mock_llm_client,
         token_counter=token_counter,
-        logger=mock_logger,
         token_budget=1000,
         max_size=8,  # Smaller size to trigger summarization
     )

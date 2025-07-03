@@ -1,12 +1,11 @@
 """File operation observations for ii-agent."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 from difflib import unified_diff
 
-from ...core.schema import ObservationType
-from ..observation import Observation
-from ..actions.files import FileEditSource
+from ii_agent.core.schema import ObservationType, FileEditSource
+from ii_agent.events.observation.observation import Observation
 
 
 @dataclass
@@ -17,6 +16,7 @@ class FileReadObservation(Observation):
     success: bool = True
     error_message: Optional[str] = None
     lines_read: Optional[int] = None
+    observation: str = ObservationType.READ
     
     @property
     def message(self) -> str:
@@ -41,6 +41,7 @@ class FileWriteObservation(Observation):
     success: bool = True
     error_message: Optional[str] = None
     bytes_written: Optional[int] = None
+    observation: str = ObservationType.WRITE
     
     @property
     def message(self) -> str:
@@ -71,9 +72,10 @@ class FileEditObservation(Observation):
     prev_exist: bool = False
     old_content: Optional[str] = None
     new_content: Optional[str] = None
-    impl_source: FileEditSource = FileEditSource.STR_REPLACE
+    impl_source: FileEditSource = FileEditSource.OH_ACI
     diff: Optional[str] = None  # Raw diff between old and new content
     _diff_cache: Optional[str] = None  # Cached diff visualization
+    observation: str = ObservationType.EDIT
     
     @property
     def message(self) -> str:
@@ -129,7 +131,7 @@ class FileEditObservation(Observation):
         return self._diff_cache
     
     def __str__(self) -> str:
-        if self.impl_source == FileEditSource.STR_REPLACE:
+        if self.impl_source == FileEditSource.OH_ACI:
             return self.visualize_diff()
         else:
             # For LLM-based editing, use the content directly

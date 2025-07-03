@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from typing import ClassVar, Optional
 
-from ...core.schema import ActionType  
-from ..action import Action, ActionSecurityRisk
+from ii_agent.core.schema import ActionType, SecurityRisk
+from ii_agent.events.action.action import Action
 
 
 @dataclass
@@ -14,8 +14,9 @@ class BrowseURLAction(Action):
     url: str = ""
     thought: str = ""
     return_axtree: bool = False  # whether to return accessibility tree
+    action: str = ActionType.BROWSE
     runnable: ClassVar[bool] = True
-    security_risk: Optional[ActionSecurityRisk] = ActionSecurityRisk.LOW
+    security_risk: Optional[SecurityRisk] = SecurityRisk.LOW
     
     @property
     def message(self) -> str:
@@ -39,8 +40,9 @@ class BrowseInteractiveAction(Action):
     thought: str = ""
     browsergym_send_msg_to_user: str = ""  # Message to send to user
     return_axtree: bool = False  # whether to return accessibility tree
+    action: str = ActionType.BROWSE_INTERACTIVE
     runnable: ClassVar[bool] = True
-    security_risk: Optional[ActionSecurityRisk] = ActionSecurityRisk.MEDIUM
+    security_risk: Optional[SecurityRisk] = SecurityRisk.MEDIUM
     
     @property
     def message(self) -> str:

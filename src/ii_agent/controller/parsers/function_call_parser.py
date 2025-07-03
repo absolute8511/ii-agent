@@ -4,10 +4,12 @@ import json
 from typing import Any, Dict, List
 
 from ii_agent.controller.action_parser import ResponseParser, ActionParseError
-from ii_agent.events.action import Action, ToolCallAction, MessageAction, CompleteAction
-from ii_agent.events.actions.files import FileReadAction, FileWriteAction, FileEditAction
-from ii_agent.events.actions.commands import CmdRunAction, IPythonRunCellAction
-from ii_agent.events.actions.browse import BrowseURLAction, BrowseInteractiveAction
+from ii_agent.events.action import (
+    Action, ToolCallAction, MessageAction, CompleteAction,
+    FileReadAction, FileWriteAction, FileEditAction,
+    CmdRunAction, IPythonRunCellAction,
+    BrowseURLAction, BrowseInteractiveAction
+)
 from ii_agent.events.tool import ToolCallMetadata
 from ii_agent.events.event import EventSource
 

@@ -1,0 +1,78 @@
+"""Message-related action classes."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, ClassVar, Optional
+
+from ii_agent.core.schema import ActionType, SecurityRisk
+from ii_agent.events.action.action import Action
+
+
+@dataclass
+class MessageAction(Action):
+    """Action representing a message from the agent."""
+    
+    content: str = ""
+    file_urls: Optional[list[str]] = None
+    image_urls: Optional[list[str]] = None
+    wait_for_response: bool = False
+    action: str = ActionType.MESSAGE
+    runnable: ClassVar[bool] = False
+    security_risk: Optional[SecurityRisk] = None
+    
+    # Legacy ii-agent fields for backward compatibility
+    files: list = field(default_factory=list)
+    resume: bool = False
+
+    @property
+    def message(self) -> str:
+        return self.content
+
+    @property
+    def images_urls(self) -> Optional[list[str]]:
+        """Deprecated alias for backward compatibility."""
+        return self.image_urls
+
+    @images_urls.setter
+    def images_urls(self, value: Optional[list[str]]) -> None:
+        self.image_urls = value
+
+    def __str__(self) -> str:
+        ret = f"**MessageAction** (source={self.source})\n"
+        ret += f"CONTENT: {self.content}"
+        if self.image_urls:
+            for url in self.image_urls:
+                ret += f"\nIMAGE_URL: {url}"
+        if self.file_urls:
+            for url in self.file_urls:
+                ret += f"\nFILE_URL: {url}"
+        return ret
+
+
+@dataclass
+class SystemMessageAction(Action):
+    """
+    Action that represents a system message for an agent, including the system prompt
+    and available tools. This should be the first message in the event stream.
+    """
+
+    content: str = ""
+    tools: Optional[list[Any]] = None
+    agent_version: Optional[str] = None
+    agent_class: Optional[str] = None
+    action: str = ActionType.SYSTEM
+    runnable: ClassVar[bool] = False
+
+    @property
+    def message(self) -> str:
+        return self.content
+
+    def __str__(self) -> str:
+        ret = f"**SystemMessageAction** (source={self.source})\n"
+        ret += f"CONTENT: {self.content}"
+        if self.tools:
+            ret += f"\nTOOLS: {len(self.tools)} tools available"
+        if self.agent_class:
+            ret += f"\nAGENT_CLASS: {self.agent_class}"
+        return ret
