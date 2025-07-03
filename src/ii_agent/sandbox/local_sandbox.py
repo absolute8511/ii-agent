@@ -27,4 +27,4 @@ class LocalSandbox(BaseSandbox):
         pass
 
     async def connect(self):
-        pass
+        self.host_url = f"http://localhost:{self.settings.sandbox_config.service_port}"

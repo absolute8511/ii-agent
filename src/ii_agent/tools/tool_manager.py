@@ -42,7 +42,7 @@ from ii_agent.tools.complete_tool import (
     ReturnControlToGeneralAgentTool,
 )
 from ii_agent.browser.browser import Browser
-from ii_agent.utils import WorkspaceManager
+from ii_agent.utils.workspace_manager import WorkspaceManager
 from ii_agent.llm.message_history import MessageHistory
 from ii_agent.tools.browser_tools import (
     BrowserNavigationTool,
@@ -98,6 +98,9 @@ def get_system_tools(
 
     logger = logging.getLogger("tool_manager")
 
+    terminal_client = TerminalClient(settings)
+    str_replace_client = StrReplaceClient(settings)
+
     tools = []
     tools.append(CodingAssistantTool(workspace_manager=workspace_manager, llm_client=client))
     if workspace_manager.is_local_workspace():
@@ -108,10 +111,23 @@ def get_system_tools(
             ]
         )  # Todo: Replace this with local mode of register deployment tool
     else:
-        tools.extend([RegisterDeploymentTool(sandbox_manager=sandbox_manager)])
-
-    terminal_client = TerminalClient(settings)
-    str_replace_client = StrReplaceClient(settings)
+        tools.extend(
+            [
+                RegisterDeploymentTool(sandbox_manager=sandbox_manager),
+                FullStackInitTool(
+                    workspace_manager=workspace_manager,
+                    terminal_client=terminal_client,
+                    system_prompt_builder=system_prompt_builder,
+                ),
+                DatabaseConnection(settings=settings),
+                OpenAILLMTool(settings=settings),
+                DeployTool(
+                    terminal_client=terminal_client,
+                    workspace_manager=workspace_manager,
+                    settings=settings,
+                ),
+            ]
+        )
 
     # Shell tools
     tools.extend(
@@ -150,19 +166,7 @@ def get_system_tools(
                 workspace_manager=workspace_manager,
                 str_replace_client=str_replace_client,
             ),
-            FullStackInitTool(
-                workspace_manager=workspace_manager,
-                terminal_client=terminal_client,
-                system_prompt_builder=system_prompt_builder,
-            ),
             DisplayImageTool(workspace_manager=workspace_manager),
-            DatabaseConnection(settings=settings),
-            OpenAILLMTool(settings=settings),
-            DeployTool(
-                terminal_client=terminal_client,
-                workspace_manager=workspace_manager,
-                settings=settings,
-            ),
         ]
     )
 
