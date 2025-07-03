@@ -325,4 +325,50 @@ When you are using compact - please focus on test output and code changes. Inclu
 
         return summary
     
-    
+    def generate_complete_conversation_summary(
+        self, message_lists: list[list[GeneralContentBlock]]
+    ) -> str:
+        """Generate a complete summary of the entire conversation history.
+        
+        This method is specifically designed for the /compact command to summarize
+        the entire conversation history, not just forgotten events.
+        
+        Args:
+            message_lists: The complete conversation history
+            
+        Returns:
+            A comprehensive summary of the conversation
+        """
+        if not message_lists:
+            return "No conversation history to summarize."
+        
+        # Convert all message lists to string format
+        conversation_content = ""
+        for i, message_list in enumerate(message_lists):
+            event_content = self._message_list_to_string(message_list)
+            conversation_content += f"<TURN id={i}>\n{event_content}\n</TURN>\n\n"
+        prompt = self.summary_prompt
+        prompt = prompt + f"<CONVERSATION>\n{conversation_content}\n</CONVERSATION>\n\n"
+        prompt = prompt + "Now summarize the conversation using the rules above."
+        
+        # Generate summary using LLM
+        try:
+            summary_messages = [[TextPrompt(text=prompt)]]
+            model_response, _ = self.client.generate(
+                messages=summary_messages,
+                max_tokens=SUMMARY_MAX_TOKENS,
+                temperature=0.0,
+            )
+            summary = ""
+            for message in model_response:
+                if isinstance(message, TextResult):
+                    summary += message.text
+
+            self.logger.info(
+                f"Generated complete conversation summary for {len(message_lists)} message turns"
+            )
+            return summary
+
+        except Exception as e:
+            self.logger.error(f"Failed to generate conversation summary: {e}")
+            return f"Failed to summarize conversation due to error: {str(e)}"
