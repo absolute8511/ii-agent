@@ -23,6 +23,7 @@ import uuid
 import asyncio
 from ii_agent.db.models import Session, Event
 from ii_agent.agents.function_call import FunctionCallAgent
+from ii_agent.controller.agent_controller import AgentController
 from ii_agent.browser.browser import Browser
 from ii_agent.llm.message_history import MessageHistory
 from ii_agent.prompts.gaia_system_prompt import GAIA_SYSTEM_PROMPT
@@ -59,6 +60,7 @@ from ii_agent.utils.constants import DEFAULT_MODEL, TOKEN_BUDGET, UPLOAD_FOLDER_
 from ii_agent.db.manager import Sessions, get_db
 from ii_agent.core.event import RealtimeEvent, EventType
 from ii_agent.tools.youtube_transcript_tool import YoutubeTranscriptTool
+from ii_agent.tools.tool_manager import AgentToolManager
 
 # Global lock for thread-safe file appending
 append_answer_lock = Lock()
@@ -324,14 +326,17 @@ async def answer_single_question(
         YoutubeTranscriptTool(),
     ]
 
+    # Create tool manager from tools list
+    tool_manager = AgentToolManager(tools=tools)
+
     system_prompt = GAIA_SYSTEM_PROMPT
     init_history = MessageHistory(context_manager)
 
-    # Create agent instance for this question
-    agent = FunctionCallAgent(
+    # Create thin agent (only for state->action conversion)
+    thin_agent = FunctionCallAgent(
         system_prompt=system_prompt,
         client=client,
-        tools=tools,
+        tools=[],  # No tools - agent only converts state to action
         workspace_manager=workspace_manager,
         message_queue=message_queue,
         logger_for_agent_logs=logger,
@@ -339,6 +344,18 @@ async def answer_single_question(
         max_output_tokens_per_turn=32768,
         max_turns=200,
         session_id=session_id,  # Pass the session_id from database manager
+        interactive_mode=False,  # Run until the task is completed
+    )
+
+    # Create AgentController to orchestrate execution
+    agent = AgentController(
+        agent=thin_agent,
+        tool_manager=tool_manager,
+        workspace_manager=workspace_manager,
+        message_queue=message_queue,
+        logger_for_agent_logs=logger,
+        max_turns=200,
+        session_id=session_id,
         interactive_mode=False,  # Run until the task is completed
     )
 
@@ -362,9 +379,8 @@ Run verification steps if that's needed, you must make sure you find the correct
         )
 
         # Run agent with question-specific workspace
-        final_result = await agent.run_agent_async(
+        final_result = await agent.run_async(
             augmented_question,
-            resume=True,
             files=[example["file_name"]] if example["file_name"] else [],
         )
 

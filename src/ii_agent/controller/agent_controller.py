@@ -45,6 +45,7 @@ class AgentController:
         websocket: Optional[WebSocket] = None,
         session_id: Optional[uuid.UUID] = None,
         interactive_mode: bool = True,
+        initial_state: Optional[State] = None,
     ):
         """Initialize the agent controller.
         
@@ -58,6 +59,7 @@ class AgentController:
             websocket: Optional WebSocket for real-time communication
             session_id: UUID of the session this controller belongs to
             interactive_mode: Whether to use interactive mode
+            initial_state: Optional initial state to restore from previous session
         """
         self.agent = agent
         self.tool_manager = tool_manager
@@ -70,7 +72,11 @@ class AgentController:
         self.interactive_mode = interactive_mode
         
         self.interrupted = False
-        self.state = State(session_id=str(session_id) if session_id else "")
+        # Use provided initial state or create a new one
+        if initial_state is not None:
+            self.state = initial_state
+        else:
+            self.state = State(session_id=str(session_id) if session_id else "")
 
     async def _process_messages(self):
         """Process messages from the queue."""
@@ -263,6 +269,14 @@ class AgentController:
         """Cancel the agent execution."""
         self.interrupted = True
         self.logger_for_agent_logs.info("Agent cancellation requested")
+
+    def handle_edit_query(self):
+        """Handle edit query by canceling execution and clearing history from last user message."""
+        # Cancel the agent execution
+        self.cancel()
+        # Clear history from last user message
+        self.agent.history.clear_from_last_to_user_message()
+        self.logger_for_agent_logs.info("Agent edit query handled: cancelled and cleared history")
 
     def clear(self):
         """Clear the state and reset interruption state."""

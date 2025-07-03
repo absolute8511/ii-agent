@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from ii_agent.llm.base import ToolCall
 from ii_agent.agents.base import BaseAgent
-from ii_agent.agents.reviewer import ReviewerAgent
+from ii_agent.agents.reviewer import ReviewerAgent, ReviewerController
 from ii_agent.core.event import RealtimeEvent, EventType
 from ii_agent.core.storage.files import FileStore
 from ii_agent.core.storage.models.settings import Settings
@@ -26,9 +26,12 @@ from ii_agent.server.models.messages import (
     ReviewResultContent,
 )
 from ii_agent.core.config.ii_agent_config import IIAgentConfig
+from ii_agent.core.config.agent_config import AgentConfig
 from ii_agent.llm.base import LLMClient
 from ii_agent.llm.message_history import MessageHistory
 from ii_agent.agents.function_call import FunctionCallAgent
+from ii_agent.controller.agent_controller import AgentController
+from ii_agent.controller.state import State
 from ii_agent.llm.context_manager.llm_summarizing import LLMSummarizingContextManager
 from ii_agent.llm.token_counter import TokenCounter
 from ii_agent.tools import get_system_tools
@@ -57,7 +60,7 @@ class ChatSession:
         self.session_uuid = session_uuid
         self.file_store = file_store
         # Session state
-        self.agent: Optional[BaseAgent] = None
+        self.controller: Optional[AgentController] = None
         self.reviewer_agent: Optional[ReviewerAgent] = None
         self.active_task: Optional[asyncio.Task] = None
         self.message_processor: Optional[asyncio.Task] = None
@@ -91,8 +94,8 @@ class ChatSession:
             )
         except WebSocketDisconnect:
             logger.info("Client disconnected")
-            if self.agent:
-                self.agent.cancel()  # NOTE: Now we cancel the agent on disconnect, the background implementation will come later
+            if self.controller:
+                self.controller.cancel()  # NOTE: Now we cancel the controller on disconnect, the background implementation will come later
 
             # Wait for active task to complete before cleanup
             if self.active_task and not self.active_task.done():
@@ -183,7 +186,7 @@ class ChatSession:
             client = get_client(llm_config)
 
             # Create agent using internal methods
-            self.agent = self._create_agent(
+            self.controller = self._create_agent(
                 client,
                 self.session_uuid,
                 self.workspace_manager,
@@ -194,7 +197,7 @@ class ChatSession:
             )
 
             # Start message processor for this session
-            self.message_processor = self.agent.start_message_processing()
+            self.message_processor = self.controller.start_message_processing()
 
             # Check if reviewer is enabled in tool_args
             self.enable_reviewer = init_content.tool_args.get("enable_reviewer", False)
@@ -300,16 +303,16 @@ class ChatSession:
 
     async def _handle_cancel(self, content: dict = None):
         """Handle query cancellation."""
-        if not self.agent:
+        if not self.controller:
             await self.send_event(
                 RealtimeEvent(
                     type=EventType.ERROR,
-                    content={"message": "No active agent for this session"},
+                    content={"message": "No active controller for this session"},
                 )
             )
             return
 
-        self.agent.cancel()
+        self.controller.cancel()
 
         # Send acknowledgment that cancellation was received
         await self.send_event(
@@ -324,24 +327,23 @@ class ChatSession:
         try:
             edit_content = EditQueryContent(**content)
 
-            if not self.agent:
+            if not self.controller:
                 await self.send_event(
                     RealtimeEvent(
                         type=EventType.ERROR,
-                        content={"message": "No active agent for this session"},
+                        content={"message": "No active controller for this session"},
                     )
                 )
                 return
 
-            # Cancel the agent and clear history
-            self.agent.cancel()
-            self.agent.history.clear_from_last_to_user_message()
+            # Handle edit query using dedicated method
+            self.controller.handle_edit_query()
 
             # Delete events from database up to last user message if we have a session ID
-            if self.agent.session_id:
+            if self.controller.session_id:
                 try:
                     Events.delete_events_from_last_to_user_message(
-                        self.agent.session_id
+                        self.controller.session_id
                     )
                     await self.send_event(
                         RealtimeEvent(
@@ -455,11 +457,11 @@ class ChatSession:
     async def _handle_review_result(self, content: dict):
         """Handle reviewer's feedback."""
         try:
-            if not self.agent:
+            if not self.controller:
                 await self.send_event(
                     RealtimeEvent(
                         type=EventType.ERROR,
-                        content={"message": "No active agent for this session"},
+                        content={"message": "No active controller for this session"},
                     )
                 )
                 return
@@ -490,23 +492,23 @@ class ChatSession:
     async def _run_agent_async(
         self, user_input: str, resume: bool = False, files: list = []
     ):
-        """Run the agent asynchronously and send results back to the websocket."""
-        if not self.agent:
+        """Run the agent controller asynchronously and send results back to the websocket."""
+        if not self.controller:
             await self.send_event(
                 RealtimeEvent(
                     type=EventType.ERROR,
-                    content={"message": "Agent not initialized for this session"},
+                    content={"message": "Controller not initialized for this session"},
                 )
             )
             return
 
         try:
             # Add user message to the event queue to save to database
-            self.agent.message_queue.put_nowait(
+            self.controller.message_queue.put_nowait(
                 RealtimeEvent(type=EventType.USER_MESSAGE, content={"text": user_input})
             )
-            # Run the agent with the query using the new async method
-            await self.agent.run_agent_async(user_input, files, resume)
+            # Run the controller with the query using the new async method
+            await self.controller.run_async(user_input, files)
 
         except Exception as e:
             logger.error(f"Error running agent: {str(e)}")
@@ -526,10 +528,10 @@ class ChatSession:
     async def _run_reviewer_async(self, user_input: str):
         """Run the reviewer agent to analyze the main agent's output."""
         try:
-            # Extract the final result from the agent's history
+            # Extract the final result from the controller's history
             final_result = ""
             found = False
-            for message in self.agent.history._message_lists[::-1]:
+            for message in self.controller.agent.history._message_lists[::-1]:
                 for sub_message in message:
                     if (
                         hasattr(sub_message, "tool_name")
@@ -542,7 +544,7 @@ class ChatSession:
                 if found:
                     break
             if not found:
-                logger.warning("No final result found from agent to review")
+                logger.warning("No final result found from controller to review")
                 return
             # Send notification that reviewer is starting
             await self.send_event(
@@ -581,8 +583,8 @@ class ChatSession:
 Please review this feedback and implement the suggested improvements to better complete the original task: "{user_input}"
 """
 
-                # Run agent with reviewer feedback
-                await self.agent.run_agent_async(feedback_prompt, [], True)
+                # Run controller with reviewer feedback
+                await self.controller.run_async(feedback_prompt, [])
 
         except Exception as e:
             logger.error(f"Error running reviewer: {str(e)}")
@@ -599,13 +601,13 @@ Please review this feedback and implement the suggested improvements to better c
 
     def cleanup(self):
         """Clean up resources associated with this session."""
-        # Set websocket to None in the agent but keep the message processor running
-        if self.agent:
-            self.agent.websocket = (
+        # Set websocket to None in the controller but keep the message processor running
+        if self.controller:
+            self.controller.websocket = (
                 None  # This will prevent sending to websocket but keep processing
             )
-            if self.agent.history:
-                self.agent.history.save_to_session(
+            if self.controller.agent.history:
+                self.controller.agent.history.save_to_session(
                     str(self.session_uuid), self.file_store
                 )
 
@@ -620,7 +622,7 @@ Please review this feedback and implement the suggested improvements to better c
 
         # Clean up references
         self.websocket = None
-        self.agent = None
+        self.controller = None
         self.reviewer_agent = None
         self.message_processor = None
         self.reviewer_message_processor = None
@@ -635,7 +637,7 @@ Please review this feedback and implement the suggested improvements to better c
         file_store: FileStore,
         settings: Settings,
     ):
-        """Create a new agent instance for a websocket connection.
+        """Create a new agent controller instance for a websocket connection.
 
         Args:
             client: LLM client instance
@@ -643,9 +645,11 @@ Please review this feedback and implement the suggested improvements to better c
             workspace_manager: Workspace manager
             websocket: WebSocket connection
             tool_args: Tool configuration arguments
+            file_store: File store instance
+            settings: Settings instance
 
         Returns:
-            Configured agent instance
+            Configured agent controller instance
         """
         device_id = websocket.query_params.get("device_id")
 
@@ -687,7 +691,7 @@ Please review this feedback and implement the suggested improvements to better c
         )
 
         # Create agent
-        return self._create_agent_instance(
+        return self._create_controller(
             client,
             workspace_manager,
             websocket,
@@ -699,7 +703,7 @@ Please review this feedback and implement the suggested improvements to better c
             settings,
         )
 
-    def _create_agent_instance(
+    def _create_controller(
         self,
         client: LLMClient,
         workspace_manager: WorkspaceManager,
@@ -712,9 +716,9 @@ Please review this feedback and implement the suggested improvements to better c
         settings: Settings,
     ):
         """Create the actual agent instance."""
-        # Initialize agent queue and tools
+        # Initialize agent queue and tool manager
         queue = asyncio.Queue()
-        tools = get_system_tools(
+        tool_manager = get_system_tools(
             client=client,
             workspace_manager=workspace_manager,
             message_queue=queue,
@@ -730,31 +734,44 @@ Please review this feedback and implement the suggested improvements to better c
             else SYSTEM_PROMPT
         )
 
-        # try to get history from file store
-        init_history = MessageHistory(context_manager)
-        try:
-            init_history.restore_from_session(str(session_id), file_store)
+        # Restore state from previous session if available
+        initial_state = self._maybe_restore_state(session_id, file_store)
 
-        except FileNotFoundError:
-            logger.info(f"No history found for session {session_id}")
+        # Get available tool parameters from tool manager so agent knows what actions it can perform
+        available_tool_params = [tool.get_tool_param() for tool in tool_manager.get_tools()]
 
-        agent = FunctionCallAgent(
+        # Create agent config for the thin agent
+        agent_config = AgentConfig(
+            max_tokens_per_turn=self.config.max_output_tokens_per_turn,
             system_prompt=system_prompt,
-            client=client,
-            tools=tools,
+            temperature=0.0,
+        )
+
+        # Create thin FunctionCallAgent (converts state to action, needs to know available tools)
+        thin_agent = FunctionCallAgent(
+            llm=client,
+            config=agent_config,
+            system_prompt=system_prompt,
+            available_tools=available_tool_params,  # Agent needs to know what actions it can perform
+        )
+
+        # Create AgentController to orchestrate execution
+        controller = AgentController(
+            agent=thin_agent,
+            tool_manager=tool_manager,
             workspace_manager=workspace_manager,
             message_queue=queue,
             logger_for_agent_logs=logger,
-            init_history=init_history,
-            max_output_tokens_per_turn=self.config.max_output_tokens_per_turn,
             max_turns=self.config.max_turns,
             websocket=websocket,
             session_id=session_id,
+            interactive_mode=True,
+            initial_state=initial_state,
         )
 
-        # Store the session ID in the agent for event tracking
-        agent.session_id = session_id
-        return agent
+        # Store the session ID for event tracking
+        controller.session_id = session_id
+        return controller
 
     def _create_reviewer_agent(
         self,
@@ -766,7 +783,7 @@ Please review this feedback and implement the suggested improvements to better c
         file_store: FileStore,
         settings: Settings,
     ):
-        """Create a new reviewer agent instance for a websocket connection.
+        """Create a new reviewer controller instance for a websocket connection.
 
         Args:
             client: LLM client instance
@@ -777,17 +794,31 @@ Please review this feedback and implement the suggested improvements to better c
             file_store: File store instance
 
         Returns:
-            Configured reviewer agent instance
+            Configured reviewer controller instance
         """
         # Setup logging
-        logger_for_agent_logs = self._setup_logger(websocket)
+        logger_for_agent_logs = logging.getLogger(f"reviewer_logs_{id(websocket)}")
+        logger_for_agent_logs.setLevel(logging.DEBUG)
+        logger_for_agent_logs.propagate = False
+
+        # Ensure we don't duplicate handlers
+        if not logger_for_agent_logs.handlers:
+            logger_for_agent_logs.addHandler(logging.FileHandler(self.config.logs_path))
+            if not self.config.minimize_stdout_logs:
+                logger_for_agent_logs.addHandler(logging.StreamHandler())
 
         # Create context manager
-        context_manager = self._create_context_manager(client, logger_for_agent_logs)
+        token_counter = TokenCounter()
+        context_manager = LLMSummarizingContextManager(
+            client=client,
+            token_counter=token_counter,
+            logger=logger_for_agent_logs,
+            token_budget=self.config.token_budget,
+        )
 
-        # Initialize agent queue and tools
+        # Initialize agent queue and tool manager
         queue = asyncio.Queue()
-        tools = get_system_tools(
+        tool_manager = get_system_tools(
             client=client,
             workspace_manager=workspace_manager,
             message_queue=queue,
@@ -796,10 +827,10 @@ Please review this feedback and implement the suggested improvements to better c
             settings=settings,
         )
 
-        reviewer_agent = ReviewerAgent(
+        # Create thin reviewer agent (only for state->action conversion)
+        thin_reviewer = ReviewerAgent(
             system_prompt=REVIEWER_SYSTEM_PROMPT,
             client=client,
-            tools=tools,
             workspace_manager=workspace_manager,
             message_queue=queue,
             logger_for_agent_logs=logger_for_agent_logs,
@@ -810,4 +841,32 @@ Please review this feedback and implement the suggested improvements to better c
             session_id=session_id,
         )
 
-        return reviewer_agent
+        # Create ReviewerController to orchestrate execution
+        reviewer_controller = ReviewerController(
+            reviewer_agent=thin_reviewer,
+            tool_manager=tool_manager,
+            workspace_manager=workspace_manager,
+            message_queue=queue,
+            logger_for_agent_logs=logger_for_agent_logs,
+            max_turns=self.config.max_turns,
+            websocket=websocket,
+            session_id=session_id,
+        )
+
+        return reviewer_controller
+
+    def _maybe_restore_state(self, session_id: uuid.UUID, file_store: FileStore) -> State | None:
+        """Helper method to handle state restore logic."""
+        restored_state = None
+
+        try:
+            restored_state = State.restore_from_session(
+                str(session_id), file_store, None  # user_id is None in our case
+            )
+            logger.info(f'Restored state from session, session_id: {session_id}')
+        except Exception as e:
+            # For now, we'll just log and continue without restored state
+            # In the future, we could check if we have events and should have a state
+            logger.debug(f'State could not be restored for session {session_id}: {e}')
+        
+        return restored_state

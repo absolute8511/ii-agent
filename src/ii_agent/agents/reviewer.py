@@ -17,41 +17,28 @@ from ii_agent.tools.base import ToolImplOutput, LLMTool
 from ii_agent.tools import AgentToolManager
 from ii_agent.utils.workspace_manager import WorkspaceManager
 from ii_agent.db.manager import Events
+from ii_agent.controller.state import State, AgentState
+from ii_agent.events.action import Action, MessageAction, ToolCallAction, CompleteAction
+from ii_agent.events.event import EventSource
 
 
 class ReviewerAgent(BaseAgent):
+    """Thin ReviewerAgent that only converts state to review actions.
+    
+    This agent focuses purely on decision-making for review tasks,
+    converting review state to appropriate actions. The actual tool
+    execution is handled by ReviewerController.
+    """
     name = "reviewer_agent"
     description = """\
-A comprehensive reviewer agent that evaluates and reviews the results/websites/slides created by general agent, 
-then provides detailed feedback and improvement suggestions with special focus on functionality testing.
-
-This agent conducts thorough reviews with emphasis on:
-- Testing ALL interactive elements (buttons, forms, navigation, etc.)
-- Verifying website functionality and user experience
-- Providing detailed, natural language feedback without format restrictions
-- Identifying specific issues and areas for improvement
+A thin reviewer agent that converts review state to appropriate actions.
+Focuses on analyzing agent work and determining next review steps.
 """
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "task": {
-                "type": "string",
-                "description": "The task that the general agent is trying to solve"
-            },
-            "workspace_dir": {
-                "type": "string",
-                "description": "The workspace directory of the general agent execution to review"
-            },
-        },
-        "required": ["task", "workspace_dir"]
-    }
-    websocket: Optional[WebSocket]
 
     def __init__(
         self,
         system_prompt: str,
         client: LLMClient,
-        tools: List[LLMTool],
         workspace_manager: WorkspaceManager,
         message_queue: asyncio.Queue,
         logger_for_agent_logs: logging.Logger,
@@ -60,95 +47,178 @@ This agent conducts thorough reviews with emphasis on:
         max_turns: int = 200,
         websocket: Optional[WebSocket] = None,
         session_id: Optional[uuid.UUID] = None,
-        interactive_mode: bool = True,
     ):
-        """Initialize the reviewer agent."""
+        """Initialize the thin reviewer agent (state->action conversion only)."""
         super().__init__()
         self.workspace_manager = workspace_manager
         self.system_prompt = system_prompt
         self.client = client
-        self.tool_manager = AgentToolManager(
-            tools=tools,
-            logger_for_agent_logs=logger_for_agent_logs,
-            interactive_mode=interactive_mode,
-            reviewer_mode=True,
-        )
-
         self.logger_for_agent_logs = logger_for_agent_logs
         self.max_output_tokens = max_output_tokens_per_turn
         self.max_turns = max_turns
-
-        self.interrupted = False
         self.history = MessageHistory(context_manager)
         self.context_manager = context_manager
         self.session_id = session_id
-
         self.message_queue = message_queue
         self.websocket = websocket
-        
-        # Cache for tool parameters to avoid repeated validation
-        self._cached_tool_params = None
 
     async def _process_messages(self):
+        """Process messages from queue (no-op for thin agent)."""
         pass
     
-    async def _generate_llm_response(
-        self, 
-        messages: List[Any], 
-        tools: List[ToolCallParameters]
-    ) -> Tuple[List[Any], Any]:
-        """Centralized LLM response generation with timing metrics."""
-        start_time = time.time()
+    async def step(self, state: State) -> Action:
+        """Convert current review state to the next action to take.
         
-        # Use asyncio.to_thread for cleaner async execution
-        model_response, metadata = await asyncio.to_thread(
-            self.client.generate,
-            messages=messages,
-            max_tokens=self.max_output_tokens,
-            tools=tools,
-            system_prompt=self.system_prompt,
-        )
+        This is the core method for the thin agent - it analyzes the
+        review state and determines what action should be taken next.
         
-        elapsed = time.time() - start_time
-        self.logger_for_agent_logs.debug(f"LLM generation took {elapsed:.2f}s")
-        
-        return model_response, metadata
-
-    def _validate_tool_parameters(self):
-        """Validate tool parameters and check for duplicates with caching."""
-        if self._cached_tool_params is not None:
-            return self._cached_tool_params
+        Args:
+            state: Current state containing review history and context
             
-        tool_params = [tool.get_tool_param() for tool in self.tool_manager.get_tools()]
-        tool_names = [param.name for param in tool_params]
-        sorted_names = sorted(tool_names)
-        for i in range(len(sorted_names) - 1):
-            if sorted_names[i] == sorted_names[i + 1]:
-                raise ValueError(f"Tool {sorted_names[i]} is duplicated")
+        Returns:
+            Action: The next action to take in the review process
+        """
+        # Get current messages for LLM context
+        current_messages = self.history.get_messages_for_llm()
         
-        self._cached_tool_params = tool_params
-        return tool_params
-
+        # Apply truncation if needed for context limits
+        truncated_messages = self.context_manager.apply_truncation_if_needed(current_messages)
+        
+        try:
+            # Generate LLM response to determine next action
+            model_response, metadata = await asyncio.to_thread(
+                self.client.generate,
+                messages=truncated_messages,
+                max_tokens=self.max_output_tokens,
+                tools=[],  # Thin agent doesn't define tools
+                system_prompt=self.system_prompt,
+            )
+            
+            if not model_response:
+                return MessageAction(content="No response from model")
+            
+            # Parse the model response into appropriate action
+            return self._parse_response_to_action(model_response)
+            
+        except Exception as e:
+            self.logger_for_agent_logs.error(f"Error in reviewer step: {e}")
+            return MessageAction(content=f"Error determining next action: {e}")
+    
+    def _parse_response_to_action(self, model_response: List[Any]) -> Action:
+        """Parse LLM response into appropriate Action object.
+        
+        Args:
+            model_response: Raw response from LLM
+            
+        Returns:
+            Action: Parsed action to execute
+        """
+        # Extract text and tool calls from response
+        text_content = ""
+        tool_calls = []
+        
+        for item in model_response:
+            if isinstance(item, TextResult):
+                text_content += item.text
+            elif hasattr(item, 'tool_name'):  # Tool call
+                tool_calls.append(item)
+        
+        # If we have tool calls, create ToolCallAction
+        if tool_calls:
+            tool_call = tool_calls[0]  # Take first tool call
+            action = ToolCallAction(
+                tool_name=tool_call.tool_name,
+                tool_input=tool_call.tool_input,
+                tool_call_id=getattr(tool_call, 'tool_call_id', ''),
+            )
+            action.source = EventSource.AGENT
+            return action
+        
+        # Check if this looks like a completion
+        if any(word in text_content.lower() for word in ['complete', 'finished', 'done', 'return control']):
+            action = CompleteAction(final_answer=text_content)
+            action.source = EventSource.AGENT
+            return action
+        
+        # Default to message action
+        action = MessageAction(content=text_content)
+        action.source = EventSource.AGENT
+        return action
+    
     def start_message_processing(self):
         """Start processing the message queue."""
         return asyncio.create_task(self._process_messages())
 
-    async def run_impl(
-        self,
-        tool_input: dict[str, Any],
-        message_history: Optional[MessageHistory] = None,
-    ) -> ToolImplOutput:
-        task = tool_input["task"]
-        workspace_dir = tool_input["workspace_dir"]
-        result = tool_input["result"]
-        user_input_delimiter = "-" * 45 + " REVIEWER INPUT " + "-" * 45
-        self.logger_for_agent_logs.info(f"\n{user_input_delimiter}\nReviewing agent logs and output...\n")
+    def cancel(self):
+        """Cancel the reviewer execution."""
+        self.logger_for_agent_logs.info("Reviewer cancellation requested")
 
-        # Construct the review instruction
-        review_instruction = f"""You are a reviewer agent tasked with evaluating the work done by an general agent. 
+    def clear(self):
+        """Clear the dialog history."""
+        self.history.clear()
+
+
+class ReviewerController:
+    """Controller for managing reviewer execution using the thin ReviewerAgent.
+    
+    This controller orchestrates the review process by:
+    1. Taking review requests 
+    2. Using ReviewerAgent to convert state to actions
+    3. Executing actions via tool manager
+    4. Managing the overall review workflow
+    """
+    
+    def __init__(
+        self,
+        reviewer_agent: ReviewerAgent,
+        tool_manager: AgentToolManager,
+        workspace_manager: WorkspaceManager,
+        message_queue: asyncio.Queue,
+        logger_for_agent_logs: logging.Logger,
+        max_turns: int = 200,
+        websocket: Optional[WebSocket] = None,
+        session_id: Optional[uuid.UUID] = None,
+    ):
+        """Initialize the reviewer controller."""
+        self.reviewer_agent = reviewer_agent
+        self.tool_manager = tool_manager
+        self.workspace_manager = workspace_manager
+        self.message_queue = message_queue
+        self.logger_for_agent_logs = logger_for_agent_logs
+        self.max_turns = max_turns
+        self.websocket = websocket
+        self.session_id = session_id
+        self.interrupted = False
+
+    async def run_review_async(
+        self,
+        task: str,
+        result: str,
+        workspace_dir: str,
+        resume: bool = False,
+    ) -> str:
+        """Run a comprehensive review asynchronously.
+        
+        Args:
+            task: The task that was executed
+            result: The result of the task execution  
+            workspace_dir: The workspace directory to review
+            resume: Whether to resume from previous state
+            
+        Returns:
+            Review feedback string
+        """
+        # Reset state for new review
+        if not resume:
+            self.reviewer_agent.clear()
+            self.interrupted = False
+            self.tool_manager.reset()
+
+        # Set up initial review context
+        review_instruction = f"""You are a reviewer agent tasked with evaluating the work done by a general agent. 
 You have access to all the same tools that the general agent has.
 
-Here is the task that the general agent is trying to solve:
+Here is the task that the general agent was trying to solve:
 {task}
 
 Here is the result of the general agent's execution:
@@ -157,169 +227,85 @@ Here is the result of the general agent's execution:
 Here is the workspace directory of the general agent's execution:
 {workspace_dir}
 
-Now your turn to review the general agent's work.
+Please conduct a thorough review of the general agent's work and provide detailed feedback.
 """
-        self.history.add_user_prompt(review_instruction)
-        self.interrupted = False
+        
+        self.reviewer_agent.history.add_user_prompt(review_instruction)
+        
+        # Create state for the review process
+        state = State(
+            session_id=str(self.session_id) if self.session_id else "",
+            agent_state=AgentState.RUNNING,
+            history=[],  # Will be populated as we go
+            outputs={"task": task, "result": result, "workspace_dir": workspace_dir}
+        )
 
+        # Main review loop
         remaining_turns = self.max_turns
-        while remaining_turns > 0:
+        while remaining_turns > 0 and not self.interrupted:
             remaining_turns -= 1
-
+            
             delimiter = "-" * 45 + " REVIEWER TURN " + "-" * 45
             self.logger_for_agent_logs.info(f"\n{delimiter}\n")
 
-            # Get tool parameters for available tools
-            all_tool_params = self._validate_tool_parameters()
+            try:
+                # Get next action from thin reviewer agent
+                action = await self.reviewer_agent.step(state)
+                
+                # Handle different action types
+                if isinstance(action, CompleteAction):
+                    # Review is complete
+                    self.logger_for_agent_logs.info("Review completed")
+                    return action.final_answer
+                
+                elif isinstance(action, ToolCallAction):
+                    # Execute tool call
+                    tool_result = await self._execute_tool_action(action)
+                    
+                    # Check for special completion tool
+                    if action.tool_name == "return_control_to_general_agent":
+                        # Request final summary
+                        summary_instruction = "Based on your review, please provide detailed feedback to the general agent."
+                        self.reviewer_agent.history.add_user_prompt(summary_instruction)
+                        
+                        # Get final summary action
+                        final_action = await self.reviewer_agent.step(state)
+                        if isinstance(final_action, (MessageAction, CompleteAction)):
+                            return getattr(final_action, 'content', '') or getattr(final_action, 'final_answer', '')
+                
+                elif isinstance(action, MessageAction):
+                    # Log the reviewer's thoughts
+                    self.logger_for_agent_logs.info(f"Reviewer analysis: {action.content}")
+                    
+            except Exception as e:
+                self.logger_for_agent_logs.error(f"Error in review turn: {e}")
+                return f"Review failed due to error: {e}"
 
-            if self.interrupted:
-                return ToolImplOutput(
-                    tool_output="Reviewer interrupted",
-                    tool_result_message="Reviewer interrupted by user"
-                )
+        # Review did not complete within turn limit
+        return "ERROR: Review did not complete within maximum turns. The review process took too long to complete."
 
-            current_messages = self.history.get_messages_for_llm()
-            current_tok_count = self.context_manager.count_tokens(current_messages)
-            self.logger_for_agent_logs.info(
-                f"(Current token count: {current_tok_count})\n"
+    async def _execute_tool_action(self, action: ToolCallAction) -> str:
+        """Execute a tool call action and add result to history."""
+        try:
+            # Create tool call object for execution
+            tool_call = ToolCallParameters(
+                tool_name=action.tool_name,
+                tool_input=action.tool_input,
+                tool_call_id=action.tool_call_id
             )
             
-            # Add early token limit warning
-            max_context = getattr(self.context_manager, 'max_context_length', float('inf'))
-            if max_context != float('inf') and current_tok_count > max_context * 0.9:
-                self.logger_for_agent_logs.warning(
-                    f"Approaching token limit: {current_tok_count}/{max_context}"
-                )
-
-            truncated_messages_for_llm = (
-                self.context_manager.apply_truncation_if_needed(current_messages)
-            )
-
-            self.history.set_message_list(truncated_messages_for_llm)
-
-            model_response, _ = await self._generate_llm_response(
-                truncated_messages_for_llm, 
-                all_tool_params
-            )
-
-            if len(model_response) == 0:
-                model_response = [TextResult(text="No response from model")]
-
-            # Add the raw response to the canonical history
-            self.history.add_assistant_turn(model_response)
-
-            # Handle tool calls
-            pending_tool_calls = self.history.get_pending_tool_calls()
-
-            if len(pending_tool_calls) > 1:
-                raise ValueError("Only one tool call per turn is supported")
-
-            if len(pending_tool_calls) == 1:
-                tool_call = pending_tool_calls[0]
-
-                text_results = [
-                    item for item in model_response if isinstance(item, TextResult)
-                ]
-                if len(text_results) > 0:
-                    text_result = text_results[0]
-                    self.logger_for_agent_logs.info(
-                        f"Reviewer planning next step: {text_result.text}\n",
-                    )
-
-                # Handle tool call by the reviewer
-                if self.interrupted:
-                    self.add_tool_call_result(tool_call, "Tool execution interrupted")
-                    return ToolImplOutput(
-                        tool_output="Reviewer interrupted",
-                        tool_result_message="Reviewer interrupted during tool execution"
-                    )
-                
-                tool_result = await self.tool_manager.run_tool(tool_call, self.history)
-                self.add_tool_call_result(tool_call, tool_result)
-                if tool_call.tool_name == "return_control_to_general_agent":
-                    summarize_review = "Now based on your review, please rewrite detailed feedback to the general agent."
-                    self.history.add_user_prompt(summarize_review)
-                    current_messages = self.history.get_messages_for_llm()
-                    truncated_messages_for_llm = (
-                        self.context_manager.apply_truncation_if_needed(current_messages)
-                    )
-                    self.history.set_message_list(truncated_messages_for_llm)
-                    
-                    # Use centralized LLM generation
-                    model_response, _ = await self._generate_llm_response(
-                        truncated_messages_for_llm,
-                        all_tool_params
-                    )
-                    
-                    # Extract text output with proper validation
-                    tool_output = None
-                    for message in model_response:
-                        if isinstance(message, TextResult):
-                            tool_output = message.text
-                            break
-                    
-                    if tool_output:
-                        return ToolImplOutput(
-                            tool_output=tool_output,
-                            tool_result_message="Reviewer completed comprehensive review"
-                        )
-                    else:
-                        self.logger_for_agent_logs.error("No text output in model response for review summary")
-                        return ToolImplOutput(
-                            tool_output="ERROR: Reviewer did not provide text feedback",
-                            tool_result_message="Review incomplete - no text response"
-                        )
-
-        # If we exhausted all turns without completing review
-        return ToolImplOutput(
-            tool_output="ERROR: Reviewer did not complete review within maximum turns. The review process was interrupted or took too long to complete.",
-            tool_result_message="Review incomplete - maximum turns reached"
-        )
-
-    def get_tool_start_message(self, tool_input: dict[str, Any]) -> str:
-        return f"Reviewer started to analyze agent logs"
-
-    def add_tool_call_result(self, tool_call: ToolCallParameters, tool_result: str):
-        """Add a tool call result to the history and send it to the message queue."""
-        self.history.add_tool_call_result(tool_call, tool_result)
-
-    def cancel(self):
-        """Cancel the reviewer execution."""
-        self.interrupted = True
-        self.logger_for_agent_logs.info("Reviewer cancellation requested")
-
-    async def run_agent_async(
-        self,
-        task: str,
-        result: str,
-        workspace_dir: str,
-        resume: bool = False,
-    ) -> str:
-        """Start a new reviewer run asynchronously.
-
-        Args:
-            task: The task that was executed.
-            result: The result of the task execution.
-            workspace_dir: The workspace directory to review.
-            resume: Whether to resume the reviewer from the previous state,
-                continuing the dialog.
-
-        Returns:
-            The review result string.
-        """
-        self.tool_manager.reset()
-        if resume:
-            assert self.history.is_next_turn_user()
-        else:
-            self.history.clear()
-            self.interrupted = False
-
-        tool_input = {
-            "task": task,
-            "workspace_dir": workspace_dir,
-            "result": result,
-        }
-        return await self.run_async(tool_input, self.history)
+            # Execute the tool
+            tool_result = await self.tool_manager.run_tool(tool_call, self.reviewer_agent.history)
+            
+            # Add result to history
+            self.reviewer_agent.history.add_tool_call_result(tool_call, tool_result)
+            
+            return tool_result
+            
+        except Exception as e:
+            error_msg = f"Tool execution failed: {e}"
+            self.logger_for_agent_logs.error(error_msg)
+            return error_msg
 
     def run_agent(
         self,
@@ -328,37 +314,44 @@ Now your turn to review the general agent's work.
         workspace_dir: str,
         resume: bool = False,
     ) -> str:
-        """Start a new reviewer run synchronously.
-
-        Args:
-            task: The task that was executed.
-            result: The result of the task execution.
-            workspace_dir: The workspace directory to review.
-            resume: Whether to resume the reviewer from the previous state,
-                continuing the dialog.
-
-        Returns:
-            The review result string.
-        """
+        """Run review synchronously (for compatibility)."""
         try:
             # Check if there's already an event loop running
             loop = asyncio.get_running_loop()
-            # If we're here, there's a loop, so create a task
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(
                     asyncio.run,
-                    self.run_agent_async(task, result, workspace_dir, resume)
+                    self.run_review_async(task, result, workspace_dir, resume)
                 )
                 return future.result()
         except RuntimeError:
             # No event loop running, safe to use asyncio.run
             return asyncio.run(
-                self.run_agent_async(task, result, workspace_dir, resume)
+                self.run_review_async(task, result, workspace_dir, resume)
             )
 
-    def clear(self):
-        """Clear the dialog and reset interruption state."""
-        self.history.clear()
-        self.interrupted = False
-        self._cached_tool_params = None  # Clear cached tool parameters
+    def start_message_processing(self):
+        """Start processing the message queue."""
+        return self.reviewer_agent.start_message_processing()
+
+    def cancel(self):
+        """Cancel the review execution."""
+        self.interrupted = True
+        self.reviewer_agent.cancel()
+        self.logger_for_agent_logs.info("Review cancellation requested")
+
+    @property
+    def agent(self):
+        """Access to underlying agent for compatibility."""
+        return self.reviewer_agent
+
+    @property
+    def websocket(self):
+        """Access to websocket for compatibility."""
+        return self.reviewer_agent.websocket
+        
+    @websocket.setter  
+    def websocket(self, value):
+        """Set websocket for compatibility."""
+        self.reviewer_agent.websocket = value
