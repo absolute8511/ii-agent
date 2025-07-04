@@ -1,6 +1,9 @@
 import argparse
 import logging
 import uvicorn
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from ii_agent.server.app import create_app
 

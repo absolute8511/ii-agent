@@ -912,6 +912,7 @@ const ApiKeysDialog = ({
                   <SelectItem value="gemini">Gemini</SelectItem>
                   <SelectItem value="vertex">Vertex AI</SelectItem>
                   <SelectItem value="azure">Azure</SelectItem>
+                  <SelectItem value="deepseek">Deepseek</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1111,6 +1112,53 @@ const ApiKeysDialog = ({
                       }
                     }}
                     placeholder="Enter Vertex AI Region (e.g., us-central1)"
+                    className="bg-[#35363a] border-[#ffffff0f]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedProvider === "deepseek" && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="api-key">API Key</Label>
+                  <Input
+                    id="api-key"
+                    type="password"
+                    value={editingConfig?.config.api_key || ""}
+                    onChange={(e) => {
+                      if (editingConfig) {
+                        setEditingConfig({
+                          ...editingConfig,
+                          config: {
+                            ...editingConfig.config,
+                            api_key: e.target.value,
+                          },
+                        });
+                      }
+                    }}
+                    placeholder="Enter API Key"
+                    className="bg-[#35363a] border-[#ffffff0f]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="base-url">Base URL (Optional)</Label>
+                  <Input
+                    id="base-url"
+                    type="text"
+                    value={editingConfig?.config.base_url || ""}
+                    onChange={(e) => {
+                      if (editingConfig) {
+                        setEditingConfig({
+                          ...editingConfig,
+                          config: {
+                            ...editingConfig.config,
+                            base_url: e.target.value,
+                          },
+                        });
+                      }
+                    }}
+                    placeholder="Enter Base URL (if using a proxy)"
                     className="bg-[#35363a] border-[#ffffff0f]"
                   />
                 </div>

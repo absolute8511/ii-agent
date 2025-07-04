@@ -103,12 +103,15 @@ GOOGLE_APPLICATION_CREDENTIALS=absolute-path-to-credential docker compose up
 2. Set up Python environment:
 
    ```bash
-   python -m venv .venv
+   #python -m venv .venv
+   uv python install 3.10
+   uv venv --python 3.10
+   uv sync
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -e .
+   uv pip install -e .
    ```
 
-3. Set up frontend (optional):
+1. Set up frontend (optional):
    ```bash
    cd frontend
    npm install

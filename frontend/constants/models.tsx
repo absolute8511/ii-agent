@@ -16,6 +16,20 @@ export const PROVIDER_MODELS: { [key: string]: IModel[] } = {
       provider: "anthropic",
     },
   ],
+  deepseek: [
+    {
+      model_name: "deepseek-chat",
+      provider: "deepseek",
+    },
+    {
+      model_name: "deepseek-coder",
+      provider: "deepseek",
+    },
+    {
+      model_name: "deepseek-reasoner",
+      provider: "deepseek",
+    },
+  ],
   openai: [
     {
       model_name: "gpt-4-turbo",

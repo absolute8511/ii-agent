@@ -9,6 +9,7 @@ class APITypes(Enum):
     OPENAI = 'openai'
     ANTHROPIC = 'anthropic'
     GEMINI = 'gemini'
+    DEEPSEEK = 'deepseek'
 
 class LLMConfig(BaseModel):
     """Configuration for the LLM.
