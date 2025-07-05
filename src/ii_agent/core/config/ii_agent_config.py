@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Constants
 MAX_OUTPUT_TOKENS_PER_TURN = 32000
-MAX_TURNS = 500
+MAX_TURNS = 900
 
 II_AGENT_DIR = Path(__file__).parent.parent.parent
 

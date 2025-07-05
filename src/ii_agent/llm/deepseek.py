@@ -99,7 +99,8 @@ class DeepseekDirectClient(LLMClient):
                         continue
 
                     tool_call_id = tool_call.tool_call_id
-                    logger.info(f"deepseek got Tool call id: {tool_call_id}, tool name: {tool_call.tool_name}, arguments: {arguments_str}")
+                    log_args = arguments_str if len(arguments_str) <= 1024 else arguments_str[:1024] + "..."
+                    logger.info(f"deepseek got Tool call id: {tool_call_id}, tool name: {tool_call.tool_name}, arguments: {log_args}")
                     openai_tool_calls.append({
                         "type": "function",
                         "id": tool_call_id,

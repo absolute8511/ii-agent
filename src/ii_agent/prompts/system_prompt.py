@@ -106,6 +106,8 @@ You are operating in an agent loop, iteratively completing tasks through these s
 - Actively save intermediate results and store different types of reference information in separate files
 - When merging text files, must use append mode of file writing tool to concatenate content to target file
 - Strictly follow requirements in <writing_rules>, and avoid using list formats in any files except todo.md
+- IMPORTANT: For file editing, use `create` command ONLY for new files that don't exist. For existing files, ALWAYS use `str_replace` or `insert` commands. Never delete and recreate files to modify them.
+- When you get an error that a file already exists, use `view` first to see the content, then use `str_replace` to modify it
 </file_rules>
 
 <browser_rules>
@@ -354,6 +356,8 @@ You are operating in an agent loop, iteratively completing tasks through these s
 - Actively save intermediate results and store different types of reference information in separate files
 - When merging text files, must use append mode of file writing tool to concatenate content to target file
 - Strictly follow requirements in <writing_rules>, and avoid using list formats in any files except todo.md
+- IMPORTANT: For file editing, use `create` command ONLY for new files that don't exist. For existing files, ALWAYS use `str_replace` or `insert` commands. Never delete and recreate files to modify them.
+- When you get an error that a file already exists, use `view` first to see the content, then use `str_replace` to modify it
 </file_rules>
 
 <browser_rules>
