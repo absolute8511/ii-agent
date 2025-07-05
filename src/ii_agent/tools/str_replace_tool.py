@@ -303,9 +303,8 @@ Notes for using the `str_replace` command:\n
         if path.exists() and command == "create":
             content = self.read_file(path)
             if content.strip():
-                raise ToolError(
-                    f"File already exists and is not empty at: {path}. Cannot overwrite non empty files using command `create`. To modify existing files, use the `str_replace` command instead, or use `view` first to see the current content."
-                )
+                old_str = content
+                command = "str_replace"
         # Check if the path points to a directory
         if path.is_dir():
             if command != "view":

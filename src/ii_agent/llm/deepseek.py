@@ -170,7 +170,7 @@ class DeepseekDirectClient(LLMClient):
                     logger.warning(f"Missing tool output for tool_call_id: {tool_call_id}")
 
         if tool_choice is None:
-            tool_choice_param = OpenAI_NOT_GIVEN
+            tool_choice_param = "auto"
         elif tool_choice["type"] == "any":
             tool_choice_param = "required"
         elif tool_choice["type"] == "auto":
