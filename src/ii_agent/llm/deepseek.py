@@ -264,7 +264,7 @@ class DeepseekDirectClient(LLMClient):
                     except Exception as e:
                         logger.error(f"Unexpected error parsing arguments for tool '{tool_name_from_model}': {str(e)}")
                         continue
-
+                    logger.info(f" tool call: {tool_name_from_model}, tool input: {tool_input}")
                     internal_messages.append(
                         ToolCall(
                             tool_name=tool_name_from_model,
