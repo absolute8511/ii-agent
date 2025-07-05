@@ -27,6 +27,7 @@ Command = Literal[
     "str_replace",
     "insert",
     "undo_edit",
+    "overwrite",
 ]
 
 
@@ -150,8 +151,8 @@ Notes for using the `str_replace` command:\n
         "properties": {
             "command": {
                 "type": "string",
-                "enum": ["view", "create", "str_replace", "insert", "undo_edit"],
-                "description": "The commands to run. Allowed options are: `view` (display file/directory), `create` (create new file only), `str_replace` (modify existing file), `insert` (add content to existing file), `undo_edit` (revert last change).",
+                "enum": ["view", "create", "str_replace", "insert", "undo_edit", "overwrite"],
+                "description": "The commands to run. Allowed options are: `view` (display file/directory), `create` (create new file only), `str_replace` (modify existing file), `insert` (add content to existing file), `undo_edit` (revert last change), `overwrite` (overwrite existing file).",
             },
             "file_text": {
                 "description": "Required parameter of `create` command, with the content of the file to be created.",
@@ -281,6 +282,19 @@ Notes for using the `str_replace` command:\n
                 return self.insert(_ws_path, insert_line, new_str)
             elif command == "undo_edit":
                 return self.undo_edit(_ws_path)
+            elif command == "overwrite":
+                if file_text is None:
+                    raise ToolError(
+                        "Parameter `file_text` is required for command: overwrite"
+                    )
+                self.write_file(_ws_path, file_text)
+                self._file_history[_ws_path].append(file_text)
+                rel_path = self.workspace_manager.relative_path(_ws_path)
+                return ExtendedToolImplOutput(
+                    f"File overwritten successfully at: {rel_path}",
+                    f"File overwritten successfully at: {rel_path}",
+                    {"success": True},
+                )
             raise ToolError(
                 f"Unrecognized command {command}. The allowed commands for the {self.name} tool are: {', '.join(get_args(Command))}"
             )
@@ -304,10 +318,8 @@ Notes for using the `str_replace` command:\n
         if path.exists() and command == "create":
             content = self.read_file(path)
             if content.strip():
-                rel_path = self.workspace_manager.relative_path(path)
-                raise ToolError(
-                    f"File already exists and is not empty at: {rel_path}. Cannot overwrite non empty files using command `create`. To modify existing files, use the `str_replace` command instead, or use `view` first to see the current content."
-                )
+                old_str = content
+                command = "str_replace"
         # Check if the path points to a directory
         if path.is_dir():
             if command != "view":
@@ -484,6 +496,11 @@ Notes for using the `str_replace` command:\n
     ) -> ExtendedToolImplOutput:
         if new_str is None:
             new_str = ""
+
+        if old_str == new_str:
+            raise ToolError(
+                f"No replacement was performed, old_str is the same as new_str."
+            )
 
         content = self.read_file(path)
         if self.expand_tabs:
