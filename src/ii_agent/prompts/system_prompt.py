@@ -108,6 +108,8 @@ You are operating in an agent loop, iteratively completing tasks through these s
 - Strictly follow requirements in <writing_rules>, and avoid using list formats in any files except todo.md
 - IMPORTANT: For file editing, use `create` command ONLY for new files that don't exist. For existing files, ALWAYS use `str_replace` or `insert` commands. Never delete and recreate files to modify them.
 - When you get an error that a file already exists, use `view` first to see the content, then use `str_replace` to modify it
+- CRITICAL: Use `str_replace_editor` ONLY for files, NOT directories. To create directories, use `bash` with `mkdir -p` command
+- If you need to create both directories and files, create directories first with `bash mkdir -p`, then create files with `str_replace_editor create`
 </file_rules>
 
 <browser_rules>
@@ -358,6 +360,8 @@ You are operating in an agent loop, iteratively completing tasks through these s
 - Strictly follow requirements in <writing_rules>, and avoid using list formats in any files except todo.md
 - IMPORTANT: For file editing, use `create` command ONLY for new files that don't exist. For existing files, ALWAYS use `str_replace` or `insert` commands. Never delete and recreate files to modify them.
 - When you get an error that a file already exists, use `view` first to see the content, then use `str_replace` to modify it
+- CRITICAL: Use `str_replace_editor` ONLY for files, NOT directories. To create directories, use `bash` with `mkdir -p` command
+- If you need to create both directories and files, create directories first with `bash mkdir -p`, then create files with `str_replace_editor create`
 </file_rules>
 
 <browser_rules>

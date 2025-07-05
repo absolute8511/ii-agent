@@ -130,10 +130,11 @@ class StrReplaceEditorTool(LLMTool):
     name = "str_replace_editor"
 
     description = """\
-Custom editing tool for viewing, creating and editing files\n
+Custom editing tool for viewing, creating and editing FILES ONLY (not directories)\n
 * State is persistent across command calls and discussions with the user\n
 * If `path` is a file, `view` displays the result of applying `cat -n`. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep\n
-* The `create` command can ONLY be used for new files that don't exist yet\n
+* The `create` command can ONLY be used for new FILES that don't exist yet - NEVER use this for directories\n
+* To create directories, use the `bash` tool with `mkdir -p` command instead\n
 * To modify existing files, ALWAYS use `str_replace` or `insert` commands, never `create`\n
 * If a `command` generates a long output, it will be truncated and marked with `<response clipped>` \n
 * The `undo_edit` command will revert the last edit made to the file at `path`\n
@@ -312,7 +313,7 @@ Notes for using the `str_replace` command:\n
             if command != "view":
                 rel_path = self.workspace_manager.relative_path(path)
                 raise ToolError(
-                    f"The path {rel_path} is a directory and only the `view` command can be used on directories"
+                    f"The path {rel_path} is a directory and only the `view` command can be used on directories. To create directories, use the `bash` tool with `mkdir -p` command instead."
                 )
 
     async def view(

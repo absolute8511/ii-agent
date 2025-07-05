@@ -37,7 +37,7 @@ from ii_agent.llm.base import (
 )
 
 logger = logging.getLogger(__name__)
-
+MAX_LOG_LENGTH = 200
 
 class DeepseekDirectClient(LLMClient):
     """Use Deepseek models via first party API."""
@@ -99,7 +99,7 @@ class DeepseekDirectClient(LLMClient):
                         continue
 
                     tool_call_id = tool_call.tool_call_id
-                    log_args = arguments_str if len(arguments_str) <= 1024 else arguments_str[:1024] + "..."
+                    log_args = arguments_str if len(arguments_str) <= MAX_LOG_LENGTH else arguments_str[:MAX_LOG_LENGTH] + "..."
                     logger.info(f"deepseek got Tool call id: {tool_call_id}, tool name: {tool_call.tool_name}, arguments: {log_args}")
                     openai_tool_calls.append({
                         "type": "function",
@@ -117,7 +117,9 @@ class DeepseekDirectClient(LLMClient):
             for msg in other_messages_in_turn:
                 if isinstance(msg, ToolFormattedResult):
                     tool_call_outputs[msg.tool_call_id] = msg.tool_output
-                    logger.info(f"deepseek got Tool output id: {msg.tool_call_id}, output: {msg.tool_output}")
+                    json_output = json.dumps(msg.tool_output)
+                    log_output = json_output if len(json_output) <= MAX_LOG_LENGTH else json_output[:MAX_LOG_LENGTH] + "..."
+                    logger.info(f"deepseek got Tool output in turn id: {msg.tool_call_id}, tool name: {msg.tool_name}, output: {log_output}")
                 else:
                     role = "user" if isinstance(msg, (TextPrompt, ImageBlock)) else "assistant"
                     content = None
@@ -160,7 +162,8 @@ class DeepseekDirectClient(LLMClient):
                         "tool_call_id": tool_call_id,
                         "content": tool_output
                     }
-                    logger.info(f"deepseek got Tool output id: {tool_call_id}, output: {tool_output}")
+                    log_output = tool_output if len(tool_output) <= MAX_LOG_LENGTH else tool_output[:MAX_LOG_LENGTH] + "..."
+                    logger.info(f"deepseek append Tool output id: {tool_call_id}, output: {log_output}")
                     openai_messages.insert(insert_index, tool_message)
                     insert_index += 1
                 else:
