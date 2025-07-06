@@ -37,7 +37,7 @@ from ii_agent.llm.base import (
 )
 
 logger = logging.getLogger(__name__)
-MAX_LOG_LENGTH = 200
+MAX_DEEPSEEK_DETAIL_LOG_LEN = 200
 
 class DeepseekDirectClient(LLMClient):
     """Use Deepseek models via first party API."""
@@ -99,7 +99,7 @@ class DeepseekDirectClient(LLMClient):
                         continue
 
                     tool_call_id = tool_call.tool_call_id
-                    log_args = arguments_str if len(arguments_str) <= MAX_LOG_LENGTH else arguments_str[:MAX_LOG_LENGTH] + "..."
+                    log_args = arguments_str if len(arguments_str) <= MAX_DEEPSEEK_DETAIL_LOG_LEN else arguments_str[:MAX_DEEPSEEK_DETAIL_LOG_LEN] + "..."
                     logger.info(f"deepseek got Tool call id: {tool_call_id}, tool name: {tool_call.tool_name}, arguments: {log_args}")
                     openai_tool_calls.append({
                         "type": "function",
@@ -118,7 +118,7 @@ class DeepseekDirectClient(LLMClient):
                 if isinstance(msg, ToolFormattedResult):
                     tool_call_outputs[msg.tool_call_id] = msg.tool_output
                     json_output = json.dumps(msg.tool_output)
-                    log_output = json_output if len(json_output) <= MAX_LOG_LENGTH else json_output[:MAX_LOG_LENGTH] + "..."
+                    log_output = json_output if len(json_output) <= MAX_DEEPSEEK_DETAIL_LOG_LEN else json_output[:MAX_DEEPSEEK_DETAIL_LOG_LEN] + "..."
                     logger.info(f"deepseek got Tool output in turn id: {msg.tool_call_id}, tool name: {msg.tool_name}, output: {log_output}")
                 else:
                     role = "user" if isinstance(msg, (TextPrompt, ImageBlock)) else "assistant"
@@ -162,7 +162,7 @@ class DeepseekDirectClient(LLMClient):
                         "tool_call_id": tool_call_id,
                         "content": tool_output
                     }
-                    log_output = tool_output if len(tool_output) <= MAX_LOG_LENGTH else tool_output[:MAX_LOG_LENGTH] + "..."
+                    log_output = tool_output if len(tool_output) <= MAX_DEEPSEEK_DETAIL_LOG_LEN else tool_output[:MAX_DEEPSEEK_DETAIL_LOG_LEN] + "..."
                     logger.info(f"deepseek append Tool output id: {tool_call_id}, output: {log_output}")
                     openai_messages.insert(insert_index, tool_message)
                     insert_index += 1
@@ -209,6 +209,13 @@ class DeepseekDirectClient(LLMClient):
                     max_tokens=max_tokens,
                 )
                 break
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to decode JSON from Deepseek response: {e}")
+                if retry == self.max_retries - 1:
+                    raise e
+                else:
+                    logger.warning(f"Retrying Deepseek request: {retry + 1}/{self.max_retries}")
+                    time.sleep(10 * random.uniform(0.8, 1.2))
             except (
                 OpenAI_APIConnectionError,
                 OpenAI_InternalServerError,
