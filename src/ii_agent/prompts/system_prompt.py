@@ -84,6 +84,7 @@ def get_file_rules(workspace_mode: WorkSpaceMode) -> str:
 - Actively save intermediate results and store different types of reference information in separate files
 - Should use absolute paths with respect to the working directory for file operations. Using relative paths will be resolved from the working directory.
 - When merging text files, must use append mode of file writing tool to concatenate content to target file
+- Before using `str_replace` or `insert` on a file, you MUST use the `view` command on that same file to get the most up-to-date content. This ensures that `old_str` is accurate.
 - Strictly follow requirements in <writing_rules>, and avoid using list formats in any files except todo.md
 </file_rules>
 """
@@ -94,6 +95,7 @@ def get_file_rules(workspace_mode: WorkSpaceMode) -> str:
 - You cannot access files outside the working directory, only use relative paths with respect to the working directory to access files (Since you don't know the absolute path of the working directory, use relative paths to access files)
 - The full path is obfuscated as .WORKING_DIR, you must use relative paths to access files
 - When merging text files, must use append mode of file writing tool to concatenate content to target file
+- Before using `str_replace` or `insert` on a file, you MUST use the `view` command on that same file to get the most up-to-date content. This ensures that `old_str` is accurate.
 - Strictly follow requirements in <writing_rules>, and avoid using list formats in any files except todo.md
 """
 
@@ -159,7 +161,7 @@ You are operating in an agent loop, iteratively completing tasks through these s
 <todo_rules>
 - Create todo.md file as checklist based on task planning from planner module
 - Task planning takes precedence over todo.md, while todo.md contains more details
-- Update markers in todo.md via text replacement tool immediately after completing each item
+- Update markers in todo.md via text replacement tool immediately after completing each item, make sure use the same format while updating the todo.md file and make sure you know the current content of the todo.md file
 - Rebuild todo.md when task planning changes significantly
 - Must use todo.md to record and update progress for information gathering tasks
 - When all planned steps are complete, verify todo.md completion and remove skipped items

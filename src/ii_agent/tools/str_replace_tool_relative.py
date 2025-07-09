@@ -28,42 +28,8 @@ Command = Literal[
     "str_replace",
     "insert",
     "undo_edit",
+    "overwrite",
 ]
-
-
-def is_path_in_directory(directory: Path, path: Path) -> bool:
-    directory = directory.resolve()
-    path = path.resolve()
-    try:
-        path.relative_to(directory)
-        return True
-    except ValueError:
-        return False
-
-
-def adjust_parallel_calls(
-    tool_calls: list[ToolCallParameters],
-) -> list[ToolCallParameters]:
-    # sort by putting insert calls before str_replace calls
-    # sort insert calls by line number
-    tool_calls.sort(
-        key=lambda x: (
-            x.tool_input.get("command") != "insert",
-            x.tool_input.get("insert_line", 0),
-        )
-    )
-
-    # increment line numbers of insert calls after each insert call
-    line_shift = 0
-    for tool_call in tool_calls:
-        if (
-            tool_call.tool_input.get("command") == "insert"
-            and "insert_line" in tool_call.tool_input
-            and "new_str" in tool_call.tool_input
-        ):
-            tool_call.tool_input["insert_line"] += line_shift
-            line_shift += len(tool_call.tool_input["new_str"].splitlines())
-    return tool_calls
 
 
 # Extend ToolImplOutput to add success property
