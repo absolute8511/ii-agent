@@ -56,6 +56,16 @@ class UndoEditRequest(BaseModel):
     )
 
 
+class ReplaceLinesRequest(BaseModel):
+    path_str: str = Field(..., description="Path to the file")
+    start_line: int = Field(..., description="Starting line number for replacement")
+    end_line: int = Field(..., description="Ending line number for replacement")
+    new_str: str = Field(..., description="String to insert")
+    display_path: Optional[str] = Field(
+        None, description="Display path for error messages"
+    )
+
+
 class ReadFileRequest(BaseModel):
     path_str: str = Field(..., description="Path to the file")
     display_path: Optional[str] = Field(
@@ -203,6 +213,24 @@ class StrReplaceServer:
                 )
             except Exception as e:
                 logger.error(f"Error in undo_edit: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/replace_lines", response_model=StrReplaceServerResponse)
+        async def replace_lines(request: ReplaceLinesRequest):
+            """Replace a range of lines in a file."""
+            try:
+                response = self.str_replace_manager.replace_lines(
+                    request.path_str,
+                    request.start_line,
+                    request.end_line,
+                    request.new_str,
+                    request.display_path,
+                )
+                return StrReplaceServerResponse(
+                    success=response.success, file_content=response.file_content
+                )
+            except Exception as e:
+                logger.error(f"Error in replace_lines: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/read_file", response_model=StrReplaceServerResponse)

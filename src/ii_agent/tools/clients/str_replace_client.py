@@ -53,6 +53,13 @@ class StrReplaceClientBase(ABC):
         pass
 
     @abstractmethod
+    def replace_lines(
+        self, path_str: str, start_line: int, end_line: int, new_str: str, display_path: str = None
+    ) -> StrReplaceResponse:
+        """Replace a range of lines in a file."""
+        pass
+
+    @abstractmethod
     def read_file(self, path_str: str, display_path: str = None) -> StrReplaceResponse:
         """Read the contents of a file."""
         pass
@@ -107,6 +114,11 @@ class LocalStrReplaceClient(StrReplaceClientBase):
 
     def undo_edit(self, path_str: str, display_path: str = None) -> StrReplaceResponse:
         return self.manager.undo_edit(path_str, display_path)
+
+    def replace_lines(
+        self, path_str: str, start_line: int, end_line: int, new_str: str, display_path: str = None
+    ) -> StrReplaceResponse:
+        return self.manager.replace_lines(path_str, start_line, end_line, new_str, display_path)
 
     def read_file(self, path_str: str, display_path: str = None) -> StrReplaceResponse:
         return self.manager.read_file(path_str, display_path)
@@ -216,6 +228,20 @@ class RemoteStrReplaceClient(StrReplaceClientBase):
             "undo_edit", {"path_str": path_str, "display_path": display_path}
         )
 
+    def replace_lines(
+        self, path_str: str, start_line: int, end_line: int, new_str: str, display_path: str = None
+    ) -> StrReplaceResponse:
+        return self._make_request(
+            "replace_lines",
+            {
+                "path_str": path_str,
+                "start_line": start_line,
+                "end_line": end_line,
+                "new_str": new_str,
+                "display_path": display_path,
+            },
+        )
+
     def read_file(self, path_str: str, display_path: str = None) -> StrReplaceResponse:
         return self._make_request(
             "read_file", {"path_str": path_str, "display_path": display_path}
@@ -283,6 +309,11 @@ class StrReplaceClient:
 
     def undo_edit(self, path_str: str, display_path: str = None) -> StrReplaceResponse:
         return self._client.undo_edit(path_str, display_path)
+
+    def replace_lines(
+        self, path_str: str, start_line: int, end_line: int, new_str: str, display_path: str = None
+    ) -> StrReplaceResponse:
+        return self._client.replace_lines(path_str, start_line, end_line, new_str, display_path)
 
     def read_file(self, path_str: str, display_path: str = None) -> StrReplaceResponse:
         return self._client.read_file(path_str, display_path)

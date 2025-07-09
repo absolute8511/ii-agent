@@ -516,6 +516,44 @@ class StrReplaceManager:
         except StrReplaceToolError as e:
             return StrReplaceResponse(success=False, file_content=str(e))
 
+    def replace_lines(
+        self, path_str: str, start_line: int, end_line: int, new_str: str, display_path: str = None
+    ) -> StrReplaceResponse:
+        if display_path is None:
+            display_path = path_str
+        try:
+            path = Path(path_str)
+            content = self._read_file(path, display_path)
+            lines = content.splitlines()
+            
+            if not (1 <= start_line <= len(lines) and 1 <= end_line <= len(lines) and start_line <= end_line):
+                raise StrReplaceToolError(f"Invalid line range [{start_line}, {end_line}] for a file with {len(lines)} lines.")
+
+            new_lines = new_str.splitlines()
+            
+            # Replace the lines
+            new_content_lines = lines[:start_line - 1] + new_lines + lines[end_line:]
+            new_content = "\n".join(new_content_lines)
+            
+            self._file_history[path].append(content)
+            self._write_file(path, new_content, display_path)
+            
+            # Create a snippet for the output
+            snippet_start = max(0, start_line - 1 - SNIPPET_LINES)
+            snippet_end = min(len(new_content_lines), start_line - 1 + len(new_lines) + SNIPPET_LINES)
+            snippet = "\n".join(new_content_lines[snippet_start:snippet_end])
+            
+            success_msg = f"Successfully replaced lines {start_line}-{end_line} in {display_path}."
+            success_msg += self._make_output(
+                file_content=snippet,
+                file_descriptor=f"a snippet of the edited file",
+                total_lines=len(new_content_lines),
+                init_line=snippet_start + 1,
+            )
+            return StrReplaceResponse(success=True, file_content=success_msg)
+        except StrReplaceToolError as e:
+            return StrReplaceResponse(success=False, file_content=str(e))
+
     def write_file(self, path_str: str, file: str, display_path: str = None):
         """Write the content of a file to a given path; raise a StrReplaceToolError if an error occurs."""
         if display_path is None:

@@ -1,8 +1,8 @@
-"""File editing tool.
+'''File editing tool.
 
-This completes the implementation specified in Anthropic's blogpost:
+This completes the implementation specified in Anthropic\'s blogpost:
 https://www.anthropic.com/engineering/swe-bench-sonnet.
-"""
+'''
 
 from pathlib import Path
 from ii_agent.utils.workspace_manager import WorkspaceManager
@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 Command = Literal[
     "view",
     "create",
-    "str_replace",
     "insert",
     "undo_edit",
     "overwrite",
+    "replace_lines",
 ]
 
 
@@ -51,29 +51,27 @@ class ToolError(Exception):
 class StrReplaceEditorTool(LLMTool):
     name = "str_replace_editor"
 
-    description = """\
-Custom editing tool for viewing, creating and editing FILES ONLY (not directories)\n
-* State is persistent across command calls and discussions with the user\n
-* If `path` is a file, `view` displays the result of applying `cat -n`. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep\n
-* The `create` command can ONLY be used for new FILES that don't exist yet - NEVER use this for directories\n
-* To create directories, use the `bash` tool with `mkdir -p` command instead\n
-* To modify existing files, ALWAYS use `str_replace` or `insert` commands, never `create`\n
-* If a `command` generates a long output, it will be truncated and marked with `<response clipped>` \n
-* The `undo_edit` command will revert the last edit made to the file at `path`\n
-\n
-Notes for using the `str_replace` command:\n
-* The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n
-* If the `old_str` parameter is not unique in the file, the replacement will not be performed. Make sure to include enough context in `old_str` to make it unique\n
-* The `new_str` parameter should contain the edited lines that should replace the `old_str`
+    description = '''Custom editing tool for viewing, creating and editing FILES ONLY (not directories)
+* State is persistent across command calls and discussions with the user
+* If `path` is a file, `view` displays the result of applying `cat -n`. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep
+* The `create` command can ONLY be used for new FILES that don\'t exist yet - NEVER use this for directories
+* To create directories, use the `bash` tool with `mkdir -p` command instead
+* To modify existing files, ALWAYS use `insert` or `replace_lines` commands, never `create`
+* If a `command` generates a long output, it will be truncated and marked with `<response clipped>` 
+* The `undo_edit` command will revert the last edit made to the file at `path`
+
+Notes for using the `replace_lines` command:
+* Use the `view` command to get the line numbers of the content to be replaced.
+* The `start_line` and `end_line` parameters are inclusive.
 * Should use absolute paths with respect to the working directory for file operations. If you use relative paths, they will be resolved from the working directory.
-"""
+'''
     input_schema = {
         "type": "object",
         "properties": {
             "command": {
                 "type": "string",
-                "enum": ["view", "create", "str_replace", "insert", "undo_edit", "overwrite"],
-                "description": "The commands to run. Allowed options are: `view` (display file/directory), `create` (create new file only), `str_replace` (modify existing file), `insert` (add content to existing file), `undo_edit` (revert last change), `overwrite` (overwrite existing file).",
+                "enum": ["view", "create", "insert", "undo_edit", "overwrite", "replace_lines"],
+                "description": "The commands to run. Allowed options are: `view` (display file/directory), `create` (create new file only), `insert` (add content to existing file), `undo_edit` (revert last change), `overwrite` (overwrite existing file), `replace_lines` (replace a range of lines).",
             },
             "file_text": {
                 "description": "Required parameter of `create` command, with the content of the file to be created.",
@@ -83,12 +81,16 @@ Notes for using the `str_replace` command:\n
                 "description": "Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.",
                 "type": "integer",
             },
-            "new_str": {
-                "description": "Required parameter of `str_replace` command containing the new string. Required parameter of `insert` command containing the string to insert.",
-                "type": "string",
+            "start_line": {
+                "description": "Required parameter of `replace_lines` command. The starting line number to replace (inclusive).",
+                "type": "integer",
             },
-            "old_str": {
-                "description": "Required parameter of `str_replace` command containing the string in `path` to replace.",
+            "end_line": {
+                "description": "Required parameter of `replace_lines` command. The ending line number to replace (inclusive).",
+                "type": "integer",
+            },
+            "new_str": {
+                "description": "Required parameter of `insert` and `replace_lines` commands containing the new string.",
                 "type": "string",
             },
             "path": {
@@ -124,9 +126,10 @@ Notes for using the `str_replace` command:\n
         path = tool_input["path"]
         file_text = tool_input.get("file_text")
         view_range = tool_input.get("view_range")
-        old_str = tool_input.get("old_str")
         new_str = tool_input.get("new_str")
         insert_line = tool_input.get("insert_line")
+        start_line = tool_input.get("start_line")
+        end_line = tool_input.get("end_line")
 
         try:
             _ws_path = self.workspace_manager.container_path(Path(path))
@@ -160,12 +163,6 @@ Notes for using the `str_replace` command:\n
                     f"File created successfully at: {self.rel_path}",
                     {"success": True},
                 )
-            elif command == "str_replace":
-                if old_str is None:
-                    raise ToolError(
-                        "Parameter `old_str` is required for command: str_replace"
-                    )
-                return self.str_replace(str(_ws_path), old_str, new_str)
             elif command == "insert":
                 if insert_line is None:
                     raise ToolError(
@@ -176,6 +173,16 @@ Notes for using the `str_replace` command:\n
                         "Parameter `new_str` is required for command: insert"
                     )
                 return self.insert(str(_ws_path), insert_line, new_str)
+            elif command == "replace_lines":
+                if start_line is None or end_line is None:
+                    raise ToolError(
+                        "Parameters `start_line` and `end_line` are required for command: replace_lines"
+                    )
+                if new_str is None:
+                    raise ToolError(
+                        "Parameter `new_str` is required for command: replace_lines"
+                    )
+                return self.replace_lines(str(_ws_path), start_line, end_line, new_str)
             elif command == "undo_edit":
                 return self.undo_edit(str(_ws_path))
             elif command == "overwrite":
@@ -221,7 +228,7 @@ Notes for using the `str_replace` command:\n
     def str_replace(
         self, path: str, old_str: str, new_str: str | None
     ) -> ExtendedToolImplOutput:
-        """Replace old_str with new_str in content, ignoring indentation."""
+        '''Replace old_str with new_str in content, ignoring indentation.'''
         response = self.str_replace_client.str_replace(
             path, old_str, new_str, display_path=self.rel_path
         )
@@ -247,7 +254,7 @@ Notes for using the `str_replace` command:\n
     def insert(
         self, path: str, insert_line: int, new_str: str
     ) -> ExtendedToolImplOutput:
-        """Implement the insert command, which inserts new_str at the specified line in the file content."""
+        '''Implement the insert command, which inserts new_str at the specified line in the file content.'''
         response = self.str_replace_client.insert(
             path, insert_line, new_str, display_path=self.rel_path
         )
@@ -271,7 +278,7 @@ Notes for using the `str_replace` command:\n
         )
 
     def undo_edit(self, path: str) -> ExtendedToolImplOutput:
-        """Implement the undo_edit command."""
+        '''Implement the undo_edit command.'''
 
         response = self.str_replace_client.undo_edit(path, display_path=self.rel_path)
         if not response.success:
@@ -289,15 +296,41 @@ Notes for using the `str_replace` command:\n
             {"success": True},
         )
 
+    def replace_lines(
+        self, path: str, start_line: int, end_line: int, new_str: str
+    ) -> ExtendedToolImplOutput:
+        '''Replace a range of lines in a file.'''
+        response = self.str_replace_client.replace_lines(
+            path, start_line, end_line, new_str, display_path=self.rel_path
+        )
+        if not response.success:
+            return ExtendedToolImplOutput(
+                response.file_content,
+                response.file_content,
+                {"success": False},
+            )
+
+        new_file_response = self.str_replace_client.read_file(
+            path, display_path=self.rel_path
+        )
+        if new_file_response.success:
+            self._send_file_update(path, new_file_response.file_content)
+
+        return ExtendedToolImplOutput(
+            response.file_content,
+            f"The file {self.rel_path} has been edited.",
+            {"success": True},
+        )
+
     def read_file(self, path: str):
-        """Read the content of a file from a given path; raise a ToolError if an error occurs."""
+        '''Read the content of a file from a given path; raise a ToolError if an error occurs.'''
         response = self.str_replace_client.read_file(path, display_path=self.rel_path)
         if not response.success:
             raise ToolError(response.file_content)
         return response.file_content
 
     def write_file(self, path: str, file: str):
-        """Write the content of a file to a given path; raise a ToolError if an error occurs."""
+        '''Write the content of a file to a given path; raise a ToolError if an error occurs.'''
         response = self.str_replace_client.write_file(
             path, file, display_path=self.rel_path
         )
@@ -309,7 +342,7 @@ Notes for using the `str_replace` command:\n
         return f"Editing file {tool_input['path']}"
 
     def _send_file_update(self, path: str, content: str):
-        """Send file content update through message queue if available."""
+        '''Send file content update through message queue if available.'''
         if self.message_queue:
             self.message_queue.put_nowait(
                 RealtimeEvent(
