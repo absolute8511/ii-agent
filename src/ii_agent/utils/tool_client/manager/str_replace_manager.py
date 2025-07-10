@@ -172,9 +172,19 @@ class StrReplaceManager:
                         "The `view_range` parameter is not allowed when `path` points to a directory."
                     )
 
-                _, stdout, stderr = run_sync_subprocess(
-                    rf"find {path} -maxdepth 2 -not -path '*/\.*' {exclusion_args}"
-                )
+                find_command = [
+                    "find",
+                    str(path),
+                    "-maxdepth",
+                    "2",
+                    "-not",
+                    "-path",
+                    "*/.*",
+                ]
+                for d in EXCLUDED_DIRS:
+                    find_command.extend(["-not", "-path", f"*/{d}/*"])
+
+                _, stdout, stderr = run_sync_subprocess(" ".join(find_command))
                 if not stderr:
                     output = f"Here's the files and directories up to 2 levels deep in {display_path}, excluding hidden items:\n{stdout}\n"
                 else:

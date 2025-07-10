@@ -162,8 +162,6 @@ class DeepseekDirectClient(LLMClient):
                         "tool_call_id": tool_call_id,
                         "content": tool_output
                     }
-                    log_output = tool_output if len(tool_output) <= MAX_DEEPSEEK_DETAIL_LOG_LEN else tool_output[:MAX_DEEPSEEK_DETAIL_LOG_LEN] + "..."
-                    logger.info(f"deepseek append Tool output id: {tool_call_id}, output: {log_output}")
                     openai_messages.insert(insert_index, tool_message)
                     insert_index += 1
                 else:
