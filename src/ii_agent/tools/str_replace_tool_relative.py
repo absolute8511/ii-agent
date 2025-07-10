@@ -56,7 +56,7 @@ class StrReplaceEditorTool(LLMTool):
 * If `path` is a file, `view` displays the result of applying `cat -n`. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep
 * The `create` command can ONLY be used for new FILES that don\'t exist yet - NEVER use this for directories
 * To create directories, use the `bash` tool with `mkdir -p` command instead
-* To modify existing files, ALWAYS use `insert` or `replace_lines` commands, never `create`
+* To modify existing files, ALWAYS use `insert` or `replace_lines` commands, never `create`. To overwrite an existing file, use the `overwrite` command.
 * If a `command` generates a long output, it will be truncated and marked with `<response clipped>` 
 * The `undo_edit` command will revert the last edit made to the file at `path`
 
@@ -190,8 +190,7 @@ Notes for using the `replace_lines` command:
                     raise ToolError(
                         "Parameter `file_text` is required for command: overwrite"
                     )
-                self.write_file(_ws_path, file_text)
-                self._file_history[_ws_path].append(file_text)
+                self.write_file(str(_ws_path), file_text)
                 rel_path = self.workspace_manager.relative_path(_ws_path)
                 return ExtendedToolImplOutput(
                     f"File overwritten successfully at: {rel_path}",
