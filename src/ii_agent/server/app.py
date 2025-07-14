@@ -40,8 +40,6 @@ def create_app() -> FastAPI:
 
     # Setup workspace static files
     setup_workspace(app, shared.config.workspace_root)
-    logger.info(f"os env is {os.environ}")
-
     # WebSocket endpoint
     @app.websocket("/ws")
     async def websocket_handler(websocket: WebSocket):
